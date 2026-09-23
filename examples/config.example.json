@@ -1,0 +1,20 @@
+{
+  "_comment": "Paths are machine-specific; the pipeline scripts also carry them at the top of each file.",
+  "game_root": "D:/SteamLibrary/steamapps/common/X4 Foundations",
+  "x_tools": "D:/SteamLibrary/steamapps/common/X Tools",
+  "x4_character_converter": "D:/tools/X4CharacterConverter",
+  "re_mesh_editor": "D:/tools/RE-Mesh-Editor-main",
+  "character_source": "D:/work/re8/output",
+  "work_dir": "D:/work/x4-retarget",
+  "mod_id": "x4_rose_mod",
+  "host_assets": {
+    "head": "assets/characters/argon/heads/char_arg_f_dyn_blend_head.xac",
+    "body": "assets/characters/argon/bodies/char_arg_f_sweater_leggings_civ_01.xac"
+  },
+  "appearance_pools": [
+    "argon.pilot.female",
+    "argon.service.female",
+    "argon.marine.female",
+    "argon.commander.female"
+  ]
+}
