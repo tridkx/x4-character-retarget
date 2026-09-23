@@ -9,7 +9,7 @@ Layout produced
 ---------------
     x4_rose_mod/
       content.xml
-      libraries/charactergroups.xml     <- adds Rose to four female pools
+      libraries/charactergroups.xml     <- Rose in every Argon-female pool
       libraries/character_macros.xml    <- the Rose NPC macro
       libraries/material_library.xml    <- our own collection
       assets/characters/argon/rose/...  <- XAC + textures
@@ -29,14 +29,20 @@ MOD = os.path.join(WORK, "x4_rose_mod")
 MOD_ID = "x4_rose_mod"
 ASSET_BASE = "extensions/%s/assets/characters/argon/rose" % MOD_ID
 
-#: female appearance pools Rose is added to (plan A).
-#: Each pool has only 3 vanilla entries, so Rose comes up ~1 in 4.
-POOLS = [
-    ('argon.pilot.female',     'Pilot / Captain'),
-    ('argon.service.female',   'Service Crew'),
-    ('argon.marine.female',    'Marine'),
-    ('argon.commander.female', 'Manager / Commander'),
-]
+#: Vanilla pool list, used to discover every Argon-female appearance pool
+#: instead of hardcoding names (the pools are nested: `argon.trader.female`
+#: points at `argon.civilian.female`, which is the one listing real macros).
+VANILLA_GROUPS = os.path.join(WORK, 'vanilla', 'libraries',
+                              'charactergroups.xml')
+
+#: True  -> every Argon-female appearance pool resolves to Rose only, so any
+#:          NPC you look at is Rose (what you want while testing).
+#: False -> Rose is appended to the pools as one more random option (~1 in 4
+#:          for the 3-entry pools), leaving the vanilla faces in rotation.
+REPLACE_ALL_ARGON_FEMALE = True
+
+#: macro name fragments that identify a vanilla female appearance
+FEMALE_MACRO_RE = re.compile(r'^character_arg(?:on)?_f(?:emale)?_', re.I)
 
 MACRO_NAME = 'character_argon_female_rose_macro'
 
@@ -131,30 +137,101 @@ def merge_material_library(textures):
 
 
 def write_content():
+    if REPLACE_ALL_ARGON_FEMALE:
+        desc = ('Replaces every Argon female NPC model with Rose Winters from '
+                'Resident Evil Village (test build: all appearance pools).')
+        cdesc = ('阿贡女性 NPC 全部替换为《生化危机8》的成年萝丝（测试版：覆盖所有外观池）。')
+    else:
+        desc = ('Adds Rose Winters from Resident Evil Village as an Argon '
+                'female NPC model.')
+        cdesc = '阿贡女性 NPC 有几率以《生化危机8》的成年萝丝形象出现。'
     text = '''<?xml version="1.0" encoding="utf-8"?>
-<content id="{id}" name="Rose Winters (RE8)" version="100" date="2026-09-23" save="0"
-         description="Adds Rose Winters from Resident Evil Village as an Argon female NPC model.">
-  <text language="7"  name="Rose Winters (RE8)" description="Recruitable Argon female NPCs can appear as Rose Winters."/>
-  <text language="44" name="Rose Winters (RE8)" description="Recruitable Argon female NPCs can appear as Rose Winters."/>
-  <text language="86" name="罗丝·温特斯 (RE8)" description="阿贡女性 NPC 有几率以《生化危机8》的成年萝丝形象出现。"/>
+<content id="{id}" name="Rose Winters (RE8)" version="101" date="2026-09-23" save="0"
+         description="{desc}">
+  <text language="7"  name="Rose Winters (RE8)" description="{desc}"/>
+  <text language="44" name="Rose Winters (RE8)" description="{desc}"/>
+  <text language="86" name="罗丝·温特斯 (RE8)" description="{cdesc}"/>
 </content>
-'''.format(id=MOD_ID)
+'''.format(id=MOD_ID, desc=desc, cdesc=cdesc)
     return write(os.path.join(MOD, 'content.xml'), text)
 
 
+def discover_female_pools():
+    """Return [(pool, n_vanilla_selects, pure)] for the pools to replace.
+
+    A pool qualifies when it selects at least one female macro.  Pools that
+    only point at other pools (`argon.trader.female` -> `argon.civilian.female`)
+    are skipped, because replacing the leaf covers them.  Mixed pools that list
+    men and women together (`benchmark`, `testcharacter` -- developer/benchmark
+    groups, not appearance pools) are left alone unless they are Argon groups.
+    """
+    if not os.path.exists(VANILLA_GROUPS):
+        print('  !! %s missing, falling back to a fixed pool list'
+              % VANILLA_GROUPS)
+        return [(p, 0, True) for p in ('argon.pilot.female', 'argon.service.female',
+                                       'argon.marine.female', 'argon.commander.female',
+                                       'argon.civilian.female',
+                                       'argon.factiondiplomat.female')]
+    text = read(VANILLA_GROUPS)
+    out = []
+    for m in re.finditer(r'<character\s+name="([^"]+)"\s*>(.*?)</character>',
+                         text, re.S):
+        name, body = m.group(1), m.group(2)
+        macros = re.findall(r'<select\s+macro="([^"]+)"', body)
+        if not macros:
+            continue
+        females = [x for x in macros if FEMALE_MACRO_RE.match(x)]
+        if not females:
+            continue
+        pure = len(females) == len(macros)
+        if pure or name.startswith('argon.'):
+            out.append((name, len(macros), pure))
+    return out
+
+
 def write_charactergroups():
+    pools = discover_female_pools()
+
     lines = ['<?xml version="1.0" encoding="utf-8"?>', '<diff>', '']
-    for pool, label in POOLS:
+    if REPLACE_ALL_ARGON_FEMALE:
         lines += [
-            '  <!-- %s -->' % label,
-            "  <add sel=\"/characters/character[@name='%s']\">" % pool,
-            '    <select macro="%s"/>' % MACRO_NAME,
-            '  </add>',
+            '  <!-- TEST MODE: every Argon-female appearance pool resolves to',
+            '       Rose only, so any Argon woman you meet is Rose.  Set',
+            '       REPLACE_ALL_ARGON_FEMALE = False in make_mod.py to go back',
+            '       to appending her as one option among the vanilla faces. -->',
             '',
         ]
+    for pool, n, pure in pools:
+        if REPLACE_ALL_ARGON_FEMALE:
+            # replace the whole node: the vanilla macros are gone, so the pool
+            # cannot fall back to an original face
+            lines += [
+                '  <!-- %s (%d vanilla entries replaced%s) -->'
+                % (pool, n, '' if pure else ', mixed pool'),
+                "  <replace sel=\"/characters/character[@name='%s']\">" % pool,
+                '    <character name="%s">' % pool,
+                '      <select macro="%s" />' % MACRO_NAME,
+                '    </character>',
+                '  </replace>',
+                '',
+            ]
+        else:
+            lines += [
+                '  <!-- %s (%d vanilla entries kept) -->' % (pool, n),
+                "  <add sel=\"/characters/character[@name='%s']\">" % pool,
+                '    <select macro="%s" />' % MACRO_NAME,
+                '  </add>',
+                '',
+            ]
     lines += ['</diff>', '']
-    return write(os.path.join(MOD, 'libraries', 'charactergroups.xml'),
+    path = write(os.path.join(MOD, 'libraries', 'charactergroups.xml'),
                  '\n'.join(lines))
+    mode = 'REPLACE ALL' if REPLACE_ALL_ARGON_FEMALE else 'append (~1 in 4)'
+    print('charactergroups: %s -- %d pools' % (mode, len(pools)))
+    for pool, n, pure in pools:
+        print('   %-32s %2d vanilla entries%s'
+              % (pool, n, '' if pure else '  (mixed)'))
+    return path
 
 
 def write_character_macros():

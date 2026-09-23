@@ -295,8 +295,13 @@ def build_asset(target):
                            'rose' if target == 'head' else 'rose_body')
     os.makedirs(out_dir, exist_ok=True)
     export_name = 'rose_head' if target == 'head' else 'rose_body'
-    pkg = A2.export_package(bpy.context, pathlib.Path(
-        os.path.join(PKG_DIR, export_name)))
+    # export_package refuses to write into an existing directory, and it does
+    # so *after* the meshes are built -- silently leaving the previous .xac in
+    # place and making every downstream check look stale.
+    pkg_target = os.path.join(PKG_DIR, export_name)
+    if os.path.isdir(pkg_target):
+        shutil.rmtree(pkg_target)
+    pkg = A2.export_package(bpy.context, pathlib.Path(pkg_target))
     print("[%s] exported package -> %s" % (target, pkg))
     return pkg
 

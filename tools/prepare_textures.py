@@ -26,7 +26,24 @@ import tex_convert        # noqa: E402
 
 WORK = r"D:\dsh-x4\work"
 RE8_MODELS = r"D:\dsh-mod\re8\output\models\Rose_Adult_ShadowsOfRose"
+RE8_RAW = r"D:\dsh-mod\re8\output\raw_natives\natives\stm\_ge\character\ch\ch01\6000"
 STAGE1_PARTS = os.path.join(WORK, "stage1_parts.json")
+
+#: meshes whose UVs decide what a shared albedo atlas actually looks like on
+#: each material (only needed to derive colours for albedo-less materials)
+PARTS = [
+    (r"6000\ch01_6000_body.mesh.2101050001",      "ch01_6000_body_skeleton.json"),
+    (r"6001\ch01_6001_jacket.mesh.2101050001",    "ch01_6001_jacket_skeleton.json"),
+    (r"6004\ch01_6004_slingbelt.mesh.2101050001", "ch01_6004_slingbelt_skeleton.json"),
+    (r"6020\ch01_6020_rose_face.mesh.2101050001", "ch01_6020_rose_face_skeleton.json"),
+    (r"6030\ch01_6030_rose_eyes.mesh.2101050001", "ch01_6030_rose_eyes_skeleton.json"),
+    (r"6040\ch01_6040_hair.mesh.2101050001",      "ch01_6040_hair_skeleton.json"),
+    (r"6050\ch01_6050_hand_r.mesh.2101050001",    "ch01_6050_hand_r_skeleton.json"),
+    (r"6060\ch01_6060_hand_l.mesh.2101050001",    "ch01_6060_hand_l_skeleton.json"),
+]
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, r"D:\dsh-mod\re8\tools\RE-Mesh-Editor-main")
 DDS_DIR = os.path.join(WORK, "tex_out", "mats")
 TMP_DIR = os.path.join(WORK, "tex_out", "tmp")
 
@@ -38,7 +55,16 @@ COLLECTION = 'rose'
 #: transparent/blank sphere.
 ALPHA_MATS = {'Sling_Mat', 'Hair_Mat', 'Stray_Hair_Mat', 'eyelashes_Mat'}
 
-#: placeholder base colours for shader-driven materials with no albedo map
+#: Placeholder base colours, only for materials the automatic rule cannot
+#: derive (they have no base material whose albedo could be sampled).
+#:
+#: The `*_Stitch_Mat` family used to be listed here with hand-picked dark
+#: values, which was wrong: those submeshes are not thin decorative lines, they
+#: are large patches of the garment (Jacket_Stitch_Mat alone is 3799 of the
+#: jacket's 33741 vertices, with tiling UVs far outside 0..1).  Painting them a
+#: flat dark grey put dark slabs across an olive jacket -- the "random line at
+#: the waist, wrong colours" report.  They are now derived from the material
+#: they sit on; see `material_mean_colours()`.
 PLACEHOLDER_RGB = {
     'boa_mat_01': (238, 236, 228),
     'boa_mat_02': (238, 236, 228),
@@ -46,16 +72,22 @@ PLACEHOLDER_RGB = {
     'boa_mat_04': (238, 236, 228),
     'shader_eyeslens_shader': (20, 20, 24),
     'eyewet_mat': (235, 235, 238),
-    'cap_stitch_mat': (32, 32, 36),
     'eyebrow_mat': (78, 56, 42),
     'eyelens_mat': (18, 18, 20),
-    'foodie_stitch_mat': (64, 64, 68),
-    'jacket_stitch_mat': (58, 54, 50),
-    'pants_stitch_mat': (62, 56, 48),
-    'shirt_stitch_mat': (232, 230, 224),
-    'shoes_stitch_mat': (38, 38, 42),
 }
 DEFAULT_PLACEHOLDER = (200, 200, 200)
+
+#: `Jacket_Stitch_Mat` -> `Jacket_Mat`: a material that shares another one's
+#: surface and therefore has to borrow its colour *and* its roughness
+BASE_MAT_RE = re.compile(r'_(?:stitch|base|detail|decal)_mat$', re.I)
+
+#: materials whose name does not encode what they sit on.  `Metal_Mat` is the
+#: parka's card geometry (7776 vertices of loose quads laid over the jacket);
+#: sampling the atlas through its own tiling UVs yields pale brown (117,108,92)
+#: against the jacket's (80,75,66), which is the pale patch across the waist.
+SHARED_SURFACE = {
+    'metal_mat': 'Jacket_Mat',
+}
 
 #: see tex_convert.MAX_TEXTURE_SIZE
 MAX_SIZE = 1024
@@ -121,6 +153,113 @@ def used_materials():
         'stage1_parts.json missing -- run tools/dump_parts.py in Blender first')
 
 
+# --------------------------------------------------------------------------
+# colours for materials that have no albedo of their own
+# --------------------------------------------------------------------------
+
+def material_mean_colours(mat_defs):
+    """{material: mean RGB actually sampled through that submesh's UVs}.
+
+    Sampling rather than averaging the whole texture matters: RE8 packs every
+    upper-body material into one atlas, so a whole-image average would be
+    pulled around by the jeans, skin and boots that share it.
+    """
+    try:
+        import re_mesh_weights as RMW
+    except Exception as exc:                              # noqa: BLE001
+        print('  (mesh reader unavailable, using flat placeholders: %s)' % exc)
+        return {}
+
+    sums = {}
+    for mesh_rel, _skel in PARTS:
+        path = os.path.join(RE8_RAW, mesh_rel)
+        if not os.path.exists(path):
+            continue
+        try:
+            parsed = RMW.load(path)
+        except Exception as exc:                          # noqa: BLE001
+            print('  (cannot read %s: %s)' % (os.path.basename(path), exc))
+            continue
+        names = [str(m) for m in parsed.materialNameList]
+        for lod in parsed.mainMeshLODList:
+            for grp in lod.visconGroupList:
+                for sm in grp.subMeshList:
+                    if sm.materialIndex >= len(names):
+                        continue
+                    mat = names[sm.materialIndex]
+                    alb = (mat_defs.get(mat) or {}).get('albedo')
+                    uvs = list(getattr(sm, 'uvList', None) or [])
+                    if not alb or not uvs:
+                        continue
+                    png = os.path.normpath(os.path.join(RE8_MODELS, alb))
+                    if not os.path.exists(png):
+                        continue
+                    img = Image.open(png).convert('RGB')
+                    arr = np.asarray(img)
+                    h, w = arr.shape[:2]
+                    uv = np.asarray(uvs, np.float32) % 1.0
+                    px = np.clip((uv[:, 0] * (w - 1)).astype(int), 0, w - 1)
+                    py = np.clip((uv[:, 1] * (h - 1)).astype(int), 0, h - 1)
+                    cols = arr[py, px].astype(np.float32)
+                    acc = sums.setdefault(mat, [np.zeros(3), 0])
+                    acc[0] += cols.sum(axis=0)
+                    acc[1] += len(cols)
+    return {k: tuple(int(round(c)) for c in (v[0] / max(1, v[1])))
+            for k, v in sums.items()}
+
+
+def base_material_name(re8_name):
+    """The material whose surface `re8_name` sits on, or None."""
+    hit = SHARED_SURFACE.get(local_name(re8_name))
+    if hit:
+        return hit
+    m = BASE_MAT_RE.search(re8_name)
+    if not m:
+        return None
+    stem = re8_name[:m.start()]
+    return '%s_Mat' % stem
+
+
+def base_material_colour(re8_name, derived):
+    """Colour for a material that has no albedo: its base material's colour."""
+    cand = base_material_name(re8_name)
+    if cand and cand in derived:
+        return derived[cand]
+    return None
+
+
+def base_material_smoothness(re8_name, mat_defs):
+    """Mean smoothness of the material `re8_name` sits on, or None.
+
+    Matters because the exporter writes a default `Smoothness = 0.5` when a
+    material has no smoothness map, while the parka's own map averages 0.08.
+    Those overlay strips (placket, waist trim, cuffs) then read as shiny bands
+    on a matte coat -- the "random bright line at the waist".
+    """
+    cand = base_material_name(re8_name)
+    if not cand:
+        return None
+    nrmr = (mat_defs.get(cand) or {}).get('normalRoughness')
+    if not nrmr:
+        return None
+    png = os.path.normpath(os.path.join(RE8_MODELS, nrmr))
+    if not os.path.exists(png):
+        return None
+    img = Image.open(png)
+    if img.mode not in ('RGBA', 'LA'):
+        return None
+    rough = np.asarray(img.convert('RGBA'))[..., 3].astype(np.float32) / 255.0
+    return float(1.0 - rough.mean())
+
+
+def write_smoothness_placeholder(path, value, size=16):
+    """Flat BC4 smoothness map of a single value (0..1)."""
+    v = int(round(max(0.0, min(1.0, value)) * 255))
+    arr = np.full((size, size, 3), v, np.uint8)
+    bc_encode.encode_bc4(Image.fromarray(arr, 'RGB'), path)
+    return path
+
+
 def main():
     os.makedirs(DDS_DIR, exist_ok=True)
     os.makedirs(TMP_DIR, exist_ok=True)
@@ -129,6 +268,10 @@ def main():
         RE8_MODELS, "Rose_Adult_ShadowsOfRose_materials.json"),
         encoding='utf-8'))['materials']
     names = used_materials()
+
+    derived = material_mean_colours(mat_defs)
+    if derived:
+        print('sampled %d material colours through their own UVs' % len(derived))
 
     manifest = {}
     for re8_name in sorted(names):
@@ -149,12 +292,41 @@ def main():
             print('  !! %-24s texture conversion failed: %s' % (re8_name, exc))
             produced = {}
 
-        if 'Diffuse' not in produced:
+        shared = SHARED_SURFACE.get(local_name(re8_name))
+        if shared and shared in derived:
+            # It has an atlas of its own, but it is card geometry lying on
+            # another material, so its own tiling UVs sample whatever happens
+            # to be there (pale brown, for the parka fittings).  Take the base
+            # material's colour instead and keep its normal/roughness maps.
             ph = os.path.join(DDS_DIR, '%s_diff.dds' % safe)
-            rgb = PLACEHOLDER_RGB.get(local_name(re8_name), DEFAULT_PLACEHOLDER)
+            rgb = derived[shared]
             write_placeholder(ph, rgb, alpha=alpha)
             produced['Diffuse'] = ph
-            print('  %-26s placeholder Diffuse %s' % (re8_name, rgb))
+            print('  %-26s diffuse overridden with %-16s (from %s)'
+                  % (re8_name, str(rgb), shared))
+
+        if 'Diffuse' not in produced:
+            ph = os.path.join(DDS_DIR, '%s_diff.dds' % safe)
+            rgb = PLACEHOLDER_RGB.get(local_name(re8_name))
+            source = 'explicit'
+            if rgb is None:
+                rgb = base_material_colour(re8_name, derived)
+                source = 'from base material'
+            if rgb is None:
+                rgb = DEFAULT_PLACEHOLDER
+                source = 'default'
+            write_placeholder(ph, rgb, alpha=alpha)
+            produced['Diffuse'] = ph
+            note = ''
+            if 'Smoothness' not in produced:
+                sm = base_material_smoothness(re8_name, mat_defs)
+                if sm is not None:
+                    sp = os.path.join(DDS_DIR, '%s_smooth.dds' % safe)
+                    write_smoothness_placeholder(sp, sm)
+                    produced['Smoothness'] = sp
+                    note = ' + smooth %.2f' % sm
+            print('  %-26s placeholder Diffuse %-16s (%s)%s'
+                  % (re8_name, str(rgb), source, note))
 
         manifest[re8_name] = {
             'x4_name': x4_full,

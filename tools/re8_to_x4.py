@@ -128,7 +128,15 @@ _NAME_RULES = [
     (r'^([LR])_NasalisCorner$',    lambda m: 'Bip01 Head'),
 
     # --- cloth chains (jacket/hood) collapse onto the torso ---------------
-    (r'^jacket_(\d+)_\d+$',        lambda m: _JACKET_TARGETS[
+    # jacket_<N>_<M>: N is the RADIAL index around the torso (0..8, every chain
+    # hangs off Spine_2), M is the distance DOWN the chain.  Measured from the
+    # skeleton rather than assumed:
+    #     jacket_*_0  z = 121..132   (Spine_2 at 127.7)
+    #     jacket_*_1  z = 115..120   (Spine_1 at 112.4)
+    #     jacket_*_2  z = 107..109   (Spine   spans  97..112)
+    #     jacket_*_3  z =  99..100   (Pelvis  at  97.2)
+    # Mapping on N (the old behaviour) bound the hem to the neck.
+    (r'^jacket_\d+_(\d+)$',        lambda m: _JACKET_TARGETS[
         min(int(m.group(1)), len(_JACKET_TARGETS) - 1)]),
     (r'^Hood_\d+$',                lambda m: 'Bip01 Neck'),
 
@@ -136,10 +144,9 @@ _NAME_RULES = [
     (r'^Hair[A-Z]_FK_\d+$',        lambda m: 'Bip01 Head'),
 ]
 
-#: jacket_N_* runs from the hem (0) up to the collar (8)
+#: jacket_<N>_<M> folded by M (0 = chest, 3 = hem), measured against the spine
 _JACKET_TARGETS = [
-    'Bip01 Pelvis', 'Bip01 Pelvis', 'Bip01 Spine', 'Bip01 Spine1',
-    'Bip01 Spine2', 'Bip01 Spine2', 'Bip01 Neck', 'Bip01 Neck', 'Bip01 Neck',
+    'Bip01 Spine2', 'Bip01 Spine1', 'Bip01 Spine', 'Bip01 Pelvis',
 ]
 
 _COMPILED = [(re.compile(rx), fn) for rx, fn in _NAME_RULES]
@@ -163,6 +170,30 @@ def map_bone(name):
         if m:
             return fn(m)
     return None
+
+
+#: Bones that have a real one-to-one counterpart in the X4 rig: their own
+#: position in the source skeleton is the anchor the bind-pose transfer uses.
+#: Everything else (twist/muscle helpers, cloth and hair chains, facial bones)
+#: only *shares* an X4 bone; those must borrow the transform of the nearest
+#: direct bone instead of being dragged to their mapped bone's position.
+_DIRECT_BONES = frozenset([
+    'Hip', 'Spine_0', 'Spine_1', 'Spine_2', 'Neck_0', 'Neck_1', 'Head',
+    'L_Shoulder', 'R_Shoulder', 'L_UpperArm', 'R_UpperArm',
+    'L_Forearm', 'R_Forearm', 'L_Hand', 'R_Hand', 'L_Palm', 'R_Palm',
+    'L_Thigh', 'R_Thigh', 'L_Shin', 'R_Shin', 'L_Foot', 'R_Foot',
+    'L_Toe', 'R_Toe', 'L_Eye', 'R_Eye',
+])
+
+_DIRECT_PREFIXES = (
+    'L_Thumb', 'R_Thumb', 'L_IndexF', 'R_IndexF', 'L_MiddleF', 'R_MiddleF',
+    'L_RingF', 'R_RingF', 'L_PinkyF', 'R_PinkyF',
+)
+
+
+def is_direct_bone(name):
+    """True when `name` has a positional counterpart in the X4 skeleton."""
+    return name in _DIRECT_BONES or name.startswith(_DIRECT_PREFIXES)
 
 
 def build_bone_map(rose_bones, x4_bone_positions, drop_unmapped=True):

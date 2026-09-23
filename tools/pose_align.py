@@ -1,5 +1,15 @@
 # -*- coding: utf-8 -*-
 """
+OBSOLETE -- kept for the record, not used by the pipeline any more.
+
+This tried to fix the "arms bend backwards" symptom by rotating the arm chain
+vertices onto the bone direction.  It could not work: the real cause was a
+mirrored forward axis plus the impossible job of fitting two differently
+proportioned rigs with one transform.  See docs/萝丝移植进展.md §11; the
+replacement is retarget_core.BindPoseRetarget.
+
+---
+
 Pose alignment: swing Rose's arms from her source pose onto the X4 bind pose.
 
 Why this is needed

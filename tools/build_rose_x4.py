@@ -10,10 +10,11 @@ What it does
 1. Imports a vanilla X4 Argon-female XAC through X4CharacterConverter, which
    gives us the authoritative 91-bone Biped armature (bind pose, Z-up, cm).
 2. Reads Rose's RE8 meshes with skin weights (RE-Mesh-Editor parser).
-3. Retargets:
-     * global frame conversion  RE8(x,y,z) m  ->  X4(x,-z,y) cm
-     * per-segment affine alignment (legs / arms / torso / head are scaled and
-       offset independently, because the two rigs do not share proportions)
+3. Retargets (see retarget_core.py):
+     * global frame conversion  RE8(x, up, forward) m -> X4(x, forward, up) cm
+     * one rigid transform per X4 bone, blended by skin weight, so the mesh
+       lands on the X4 bind pose despite the two rigs differing in pose and
+       proportions
      * skin weights remapped RE8 bone -> X4 bone by name semantics, merged and
        renormalised
 4. Builds one Blender object per RE8 part, parented to the X4 armature with
@@ -64,10 +65,8 @@ sys.path.insert(0, ADDON_DIR)
 sys.path.insert(0, RE8_TOOLS)
 
 from re8_to_x4 import map_bone, re8_to_x4, is_deform_bone  # noqa: E402
-import pose_align  # noqa: E402
+from retarget_core import BindPoseRetarget                    # noqa: E402
 
-#: parts whose vertices are driven by the arm chain
-ARM_PARTS = {'body', 'jacket', 'hand_l', 'hand_r', 'slingbelt'}
 from modules.mesh.file_re_mesh import readREMesh            # noqa: E402
 from modules.mesh.re_mesh_parse import ParsedREMesh         # noqa: E402
 
@@ -102,6 +101,28 @@ def load_x4_armature():
 # --------------------------------------------------------------------------
 # 2. RE8 mesh + weights
 # --------------------------------------------------------------------------
+def load_re8_skeleton_union():
+    """Merge every part's skeleton JSON into one source rig.
+
+    The parts do not share a bone set: the body skeleton carries no eye or
+    facial bones, while face/eyes reference ones the others lack (hair chains
+    likewise).  The bind transfer needs the union -- without it every eye and
+    facial vertex finds no transform and silently keeps the raw frame fit.
+    Bone world positions agree wherever two parts both list a bone.
+    """
+    pos, parents = {}, {}
+    for _, _, skel_json in PARTS:
+        skel = json.load(open(os.path.join(RE8_MODELS, skel_json),
+                              encoding='utf-8'))
+        for b in skel['bones']:
+            m = b['worldMatrix']
+            pos.setdefault(b['name'], (m[3][0], m[3][1], m[3][2]))
+            parents.setdefault(
+                b['name'],
+                skel['bones'][b['parent']]['name'] if b['parent'] >= 0 else None)
+    return pos, parents
+
+
 def load_re8_part(mesh_rel, skel_json):
     path = os.path.join(RE8_RAW, mesh_rel)
     raw = readREMesh(path)
@@ -109,10 +130,12 @@ def load_re8_part(mesh_rel, skel_json):
     parsed.ParseREMesh(raw)
 
     skel = json.load(open(os.path.join(RE8_MODELS, skel_json), encoding='utf-8'))
-    positions = {}
+    positions, parents = {}, {}
     for b in skel['bones']:
         m = b['worldMatrix']
         positions[b['name']] = (m[3][0], m[3][1], m[3][2])
+        parents[b['name']] = (skel['bones'][b['parent']]['name']
+                              if b['parent'] >= 0 else None)
 
     # flatten every submesh, keeping per-vertex weights AND per-submesh material
     verts, weights, groups, subs, base = [], [], [], [], 0
@@ -156,123 +179,17 @@ def load_re8_part(mesh_rel, skel_json):
         'submeshes': groups,          # [(material_index, faces)]
         'submesh_geometry': subs,     # per-submesh independent geometry
         'weighted_bones': list(weighted), 'bone_positions': positions,
+        'bone_parents': parents,
         'material_names': list(parsed.materialNameList),
     }
 
 
 # --------------------------------------------------------------------------
-# 3. per-segment affine alignment
+# 3. the retarget itself lives in retarget_core.py
 # --------------------------------------------------------------------------
-#: segment -> (rose anchor bone, x4 anchor bone) pairs used to fit scale+offset
-SEGMENTS = {
-    'leg':   [('L_Thigh',   'Bip01 L Thigh'), ('L_Calf', 'Bip01 L Calf'),
-              ('L_Foot',    'Bip01 L Foot'),  ('L_Toe',  'Bip01 L Toe0'),
-              ('R_Thigh',   'Bip01 R Thigh'), ('R_Calf', 'Bip01 R Calf'),
-              ('R_Foot',    'Bip01 R Foot'),  ('R_Toe',  'Bip01 R Toe0')],
-    'arm':   [('L_Shoulder', 'Bip01 L Clavicle'), ('L_UpperArm', 'Bip01 L UpperArm'),
-              ('L_Forearm',  'Bip01 L Forearm'),  ('L_Hand',     'Bip01 L Hand'),
-              ('R_Shoulder', 'Bip01 R Clavicle'), ('R_UpperArm', 'Bip01 R UpperArm'),
-              ('R_Forearm',  'Bip01 R Forearm'),  ('R_Hand',     'Bip01 R Hand')],
-    'torso': [('Hip', 'Bip01 Pelvis'), ('Spine_0', 'Bip01 Spine'),
-              ('Spine_1', 'Bip01 Spine1'), ('Spine_2', 'Bip01 Spine2'),
-              ('Neck_0', 'Bip01 Neck'), ('Head', 'Bip01 Head')],
-}
-
-#: which segment each RE8 bone belongs to (by name prefix)
-def bone_segment(name):
-    if name.startswith(('L_Thigh', 'R_Thigh', 'L_Calf', 'R_Calf', 'L_Shin',
-                        'R_Shin', 'L_Foot', 'R_Foot', 'L_Toe', 'R_Toe',
-                        'L_Knee', 'R_Knee')):
-        return 'leg'
-    if name.startswith(('L_Shoulder', 'R_Shoulder', 'L_UpperArm', 'R_UpperArm',
-                        'L_Forearm', 'R_Forearm', 'L_Hand', 'R_Hand',
-                        'L_Palm', 'R_Palm', 'L_Wep', 'R_Wep',
-                        'L_delt', 'R_delt', 'L_pec', 'R_pec',
-                        'L_Thumb', 'R_Thumb', 'L_Index', 'R_Index',
-                        'L_Middle', 'R_Middle', 'L_Ring', 'R_Ring',
-                        'L_Pinky', 'R_Pinky')):
-        return 'arm'
-    return 'torso'
-
-
-def re8_to_blender(p, scale=100.0):
-    """RE8 source (metres) -> the converter's Blender arrangement (cm).
-
-    Height lands in the THIRD component, matching what the importer produces
-    for skeletons (Bip01 Head z=161.4) and for vanilla meshes (head spans
-    z 145..182).
-    """
-    return (p[0] * scale, -p[2] * scale, p[1] * scale)
-
-
-#: bone pairs whose semantics are unambiguous, used to fit the retarget
-ALIGN_PAIRS = [
-    ('Hip', 'Bip01 Pelvis'), ('Spine_0', 'Bip01 Spine'),
-    ('Spine_1', 'Bip01 Spine1'), ('Spine_2', 'Bip01 Spine2'),
-    ('Neck_0', 'Bip01 Neck'), ('Head', 'Bip01 Head'),
-    ('L_Shoulder', 'Bip01 L Clavicle'), ('R_Shoulder', 'Bip01 R Clavicle'),
-    ('L_UpperArm', 'Bip01 L UpperArm'), ('R_UpperArm', 'Bip01 R UpperArm'),
-    ('L_Forearm', 'Bip01 L Forearm'), ('R_Forearm', 'Bip01 R Forearm'),
-    ('L_Thigh', 'Bip01 L Thigh'), ('R_Thigh', 'Bip01 R Thigh'),
-    ('L_Calf', 'Bip01 L Calf'), ('R_Calf', 'Bip01 R Calf'),
-    ('L_Foot', 'Bip01 L Foot'), ('R_Foot', 'Bip01 R Foot'),
-]
-
-
-def fit_global(rose_pos, x4_pos, verbose=True):
-    """One Kabsch fit for the whole skeleton: (scale, R, t), all in cm.
-
-    `rose_pos` holds RE8 world translations in METRES and `x4_pos` holds the
-    imported skeleton in CENTIMETRES, so both are pushed through
-    re8_to_blender()/identity first to make the fit well posed.  Forgetting
-    that mismatch is what made an earlier run fit scale=1.03 (it should be
-    ~1.0 *after* the metres->cm conversion) and place the mesh 45 cm off.
-
-    Limbs whose *pose* differs from the target (Rose's arms hang forward, the
-    X4 rig's do not) legitimately keep a large residual; that is handled by
-    pose_align afterwards rather than by distorting this fit.
-    """
-    P, Q = [], []
-    for rb, xb in ALIGN_PAIRS:
-        if rb in rose_pos and xb in x4_pos:
-            pv = np.array(rose_pos[rb], float)
-            if np.linalg.norm(pv) < 10.0:        # metres -> centimetres
-                pv = pv * 100.0
-            P.append(np.array([pv[0], -pv[2], pv[1]]))   # -> Blender arrangement
-            Q.append(np.array(x4_pos[xb]['head'], float))
-    if len(P) < 3:
-        raise RuntimeError("fit_global: not enough matched bone pairs")
-    P, Q = np.array(P), np.array(Q)
-    assert np.linalg.norm(P.mean(0)) > 50, "rose side not in cm"
-    assert np.linalg.norm(Q.mean(0)) > 50, "x4 side not in cm"
-
-    pc, qc = P.mean(0), Q.mean(0)
-    P0, Q0 = P - pc, Q - qc
-    U, S, Vt = np.linalg.svd(P0.T @ Q0)
-    d = np.sign(np.linalg.det(Vt.T @ U.T))
-    R = Vt.T @ np.diag([1.0, 1.0, d]) @ U.T
-    scale = float(S.sum() / (P0 ** 2).sum())
-    t = qc - scale * (R @ pc)
-
-    if verbose:
-        print("  Kabsch: scale=%.5f (期望≈1.0)  t=(%.2f, %.2f, %.2f)" % (scale, *t))
-        pred = (scale * (R @ P.T)).T + t
-        res = sorted(((float(np.linalg.norm(a - b)), rb, xb)
-                      for (rb, xb), a, b in zip(ALIGN_PAIRS, pred, Q)),
-                     reverse=True)
-        for d_, rb, xb in res[:4]:
-            print("     残差 %-12s -> %-18s %6.2f cm" % (rb, xb, d_))
-    return scale, R, t
-
-
-def _rose_cm_to_blender(p_m):
-    """RE8 metres -> Blender arrangement cm, same as fit_global's P side."""
-    return (p_m[0] * 100.0, -p_m[2] * 100.0, p_m[1] * 100.0)
-
-
-def apply_global(p, scale, R, t):
-    v = (scale * (R @ np.array(p, float))) + t
-    return (float(v[0]), float(v[1]), float(v[2]))
+# The geometry is moved onto the X4 bind pose by `BindPoseRetarget`, which
+# builds one transform per X4 bone instead of a single global one.  See that
+# module's docstring for why a global Kabsch fit cannot work here.
 
 
 # --------------------------------------------------------------------------
@@ -284,18 +201,68 @@ def apply_global(p, scale, R, t):
 #: arrive at 340k/359k.  Shipping them unmodified is ~73x the engine's NPC
 #: budget and exhausts VRAM (flicker, map lockups, corrupted map tiles).
 #: These ratios bring each part back toward the vanilla envelope.
+#:
+#: Tuned against the source preview render: at ratio 0.06 the parka's
+#: silhouette dissolved into facets and the sling belt (872 vertices in total)
+#: collapsed to an unrecognisable stub, which is what "the jacket changed
+#: completely" looked like in game.
+#:
+#: Boundary-aware collapse was tried here and abandoned: RE8 ships some
+#: submeshes as piles of loose quads (the jacket's stitch layer and fittings
+#: score faces/vertex ~1.0 with 84-87% of vertices on a border), so marking
+#: borders "protected" marks everything, switches decimation off and jumps the
+#: vertex count from 4k to 20k.  A hard vertex budget matters more than a
+#: clever heuristic, so ratio alone decides.
+#: Budget matters: X4 instances NPCs (dozens on screen in a station) and the
+#: engine starts flickering / corrupting the map once the asset is far above
+#: vanilla's ~5k vertices per asset.  15x was enough to bring the flicker
+#: back; the numbers below land near 9x, which was previously stable.
 DECIMATE_RATIO = {
-    'hair': 0.05,
-    'jacket': 0.06,
-    'body': 0.10,
-    'slingbelt': 0.10,
+    'hair': 0.03,
+    'jacket': 0.11,
+    'body': 0.09,
+    'slingbelt': 0.35,
     # hands keep more geometry: fingers are thin and collapse badly
-    'hand_l': 0.55,
-    'hand_r': 0.55,
-    'eyes': 0.50,
-    'face': 0.20,
+    'hand_l': 0.45,
+    'hand_r': 0.45,
+    'eyes': 0.35,
+    'face': 0.17,
 }
 DECIMATE_FLOOR = 200
+
+#: vanilla's own sneaker mesh bottoms out at -0.32 cm
+GROUND_Z = -0.5
+
+
+def foot_vertex_mask(weights):
+    """Boolean mask of vertices driven by the foot/toe chains."""
+    out = []
+    for wd in weights:
+        s = 0.0
+        for bn, wv in wd.items():
+            if bn.endswith(' Foot') or 'Toe' in bn or bn.endswith(' Calf'):
+                s += wv
+        out.append(s > 0.5)
+    return np.array(out, bool)
+
+
+def lift_feet(verts, weights, ground=GROUND_Z):
+    """Raise the feet so the soles rest on the floor.
+
+    X4's toe bones sit almost on the ground (Toe0 z = 0.12) while Rose's are
+    3 cm higher, so binding the toe geometry to them buries the shoes ~3.5 cm
+    into the floor.  The toes lose that much accuracy against their bone, which
+    is invisible; a sunken boot is not.
+    """
+    mask = foot_vertex_mask(weights)
+    if not mask.any():
+        return verts, 0.0
+    dz = ground - float(verts[mask][:, 2].min())
+    if dz <= 0.0:
+        return verts, 0.0
+    out = verts.copy()
+    out[mask, 2] += dz
+    return out, dz
 
 
 def decimate(ob, ratio, floor=DECIMATE_FLOOR):
@@ -323,7 +290,6 @@ def decimate(ob, ratio, floor=DECIMATE_FLOOR):
     if len(ob.data.vertices) < floor:
         return before, -1          # caller falls back to the undecimated mesh
 
-    gname = {g.index: g.name for g in ob.vertex_groups}
     unweighted = 0
     for v in ob.data.vertices:
         if not any(ge.weight > 1e-6 for ge in v.groups):
@@ -384,11 +350,13 @@ def main():
     print("X4 armature: %d bones" % len(x4_bones))
     x4_names = set(x4_bones)
 
-    # global reference skeleton (body) for segment fitting
-    ref = load_re8_part(*PARTS[0][1:])
-    scale_g, R_g, t_g = fit_global(ref['bone_positions'], x4_bones)
+    # The retarget: one transform per X4 bone, blended by skin weights.  The
+    # source rig is the union of every part's skeleton, built once and reused.
+    rose_pos, rose_parents = load_re8_skeleton_union()
+    print("source rig: %d bones (%d parts)" % (len(rose_pos), len(PARTS)))
+    transfer = BindPoseRetarget(rose_pos, rose_parents, x4_bones)
 
-    # bone map once, from the union of all parts
+    # bone map once, from the union of all parts (reporting only)
     bone_map = {}
     unmapped = set()
     for _, mesh_rel, skel_json in PARTS:
@@ -425,41 +393,20 @@ def main():
 
     for tag, mesh_rel, skel_json in PARTS:
         part = load_re8_part(mesh_rel, skel_json)
-        # one rigid+scale transform for the entire mesh
-        new_verts = []
-        for p in part['verts']:
-            new_verts.append(apply_global(_rose_cm_to_blender(p), scale_g, R_g, t_g))
-
-        # weights -> X4, merged and normalised
-        new_weights = []
-        for vi in range(len(part['verts'])):
-            acc = {}
-            for bid, wv in part['weights'][vi]:
-                if bid >= len(part['weighted_bones']):
-                    continue
-                rname = part['weighted_bones'][bid]
-                tname = bone_map.get(rname)
-                if tname is None:
-                    continue
-                acc[tname] = acc.get(tname, 0.0) + wv
-            total = sum(acc.values())
-            if total <= 1e-6:
-                # unweighted vertex: pin to the nearest X4 bone
-                new_weights.append({})
-                continue
-            new_weights.append({k: v / total for k, v in acc.items()})
-
-        # Pose alignment.  Kabsch puts the skeleton in the right place (Head
-        # residual 2.5 cm, Hip 8.3 cm), but Rose's arms/legs are authored in a
-        # different pose from the X4 rig: her hand bone resolves 42 cm from
-        # Bip01 L Hand while head and legs land within a few cm.  Rotating the
-        # affected vertices onto the bones removes that purely-posed residual.
-        if tag in ARM_PARTS:
-            arr, nplans = pose_align.apply_alignment(
-                new_verts, new_weights, x4_bones, verbose=False)
-            if nplans:
-                new_verts = [tuple(float(x) for x in v) for v in arr]
-                print("      [%s] pose-aligned %d chain(s)" % (tag, nplans))
+        # Move the whole part onto the X4 bind pose, bone by bone.
+        arr, n_unweighted, n_targets = transfer.transform(
+            part['verts'], part['weights'], part['weighted_bones'])
+        # weights -> X4, merged and normalised (needed by the foot lift)
+        new_weights = transfer.merge_weights(part['weights'],
+                                             part['weighted_bones'])
+        arr, lifted = lift_feet(arr, new_weights)
+        if lifted:
+            print("      [%s] feet raised %.2f cm to stand on the floor"
+                  % (tag, lifted))
+        new_verts = [tuple(float(x) for x in v) for v in arr]
+        if n_unweighted:
+            print("      [%s] %d vertices have no X4 bone, keeping the frame fit"
+                  % (tag, n_unweighted))
 
         tag_clean = "rose_" + tag
         made = []
@@ -472,7 +419,14 @@ def main():
             collected_uv = sub_uvs[si] if si < len(sub_uvs) else []
             remap = {old: new for new, old in enumerate(used)}
             sverts = [new_verts[i] for i in used]
-            sfaces_local = [tuple(remap[i] for i in f) for f in sfaces]
+            # Reverse every triangle.  The RE8 -> X4 frame conversion is a
+            # *reflection* (RE8 reads (x, up, forward), X4 reads (x, forward,
+            # up), so the two axis triples have opposite handedness) and the
+            # whole vertex transform therefore has det = -1.  Copying the
+            # source winding would flip every face normal inwards, which the
+            # renderer shows as clothes turning transparent (you see the far
+            # inner shell), scrambled shading, and a face that has vanished.
+            sfaces_local = [tuple(remap[i] for i in reversed(f)) for f in sfaces]
 
             me = bpy.data.meshes.new("%s_%d" % (tag_clean, si))
             me.from_pydata(sverts, [], sfaces_local)

@@ -1,5 +1,16 @@
 # -*- coding: utf-8 -*-
 """
+SUPERSEDED by preview_pose_test.py -- kept for the record.
+
+This one still imports the obsolete pose_align module and predates the
+coordinate-frame fix, so its poses are mirrored.  Use
+
+    blender -b --factory-startup --python tools/preview_pose_test.py -- <xac|blend> <tag>
+
+which also renders a vanilla reference for comparison.
+
+---
+
 Pose-test preview: drive the X4 armature through a set of test poses and
 render Rose's mesh after each, so skinning can be judged offline.
 
