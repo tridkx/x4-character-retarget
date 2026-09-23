@@ -80,8 +80,13 @@ HOSTS = {
 #: target -> [(object name, host mesh_id, [stage1 parts to merge])]
 SLOT_PLAN = {
     'head': [
+        # `eyes` (ch01_6030_rose_eyes) is NOT the eyeball: it is a copy that
+        # sits 4.2 cm lower than the eye socket.  The real eyeball lives in the
+        # face mesh as Eye_Mat (y 1.584..1.611, aligned with the eyelids and
+        # lashes at 1.584..1.602).  Shipping the copy put a second sphere in
+        # her cheek and hid the correct one, so slot 1 is left empty.
         ("rose_head_face", 0, ['face']),
-        ("rose_head_eye", 1, ['eyes']),
+        ("rose_head_eye", 1, []),
         ("rose_head_hair", 2, ['hair']),
     ],
     'body': [
@@ -202,8 +207,13 @@ def fill_slot(host_ob, obj_name, sources, materials):
         uvs.extend(src.get('uvs') or [])
 
     if not faces:
-        verts = [(0.0, 0.0, 0.0)] * 3
-        weights = [{}, {}, {}]
+        # A collapsed slot.  Neither extreme works: the exporter rejects
+        # vertices without bone weights, and the importer rejects a degenerate
+        # triangle ("contains a degenerate triangle after seam welding"), so a
+        # .xac simply cannot express an empty slot.  Ship a 1 cm triangle
+        # buried inside the head instead -- invisible, but valid both ways.
+        verts = [(0.0, 0.0, 152.0), (1.0, 0.0, 152.0), (0.0, 1.0, 152.0)]
+        weights = [{'Bip01 Head': 1.0} for _ in range(3)]
         faces = [(0, 1, 2, 0)]
         mat_order = [next(iter(materials.values()))]
 
@@ -279,8 +289,15 @@ def build_asset(target):
             continue
         sources = [s for p in parts_wanted for s in parts.get(p, [])]
         if not sources:
-            bpy.data.objects.remove(host_ob, do_unlink=True)
-            print("   -- slot %d (%s) empty, removed" % (mesh_id, obj_name))
+            # Collapse the slot to a degenerate mesh instead of deleting the
+            # object: the exporter rebuilds every mesh_id the host template
+            # declares, so a removed object comes back as the *vanilla* mesh.
+            # (That is how X4's own cornea kept shipping in slot 1 even after
+            # the object was deleted.)  Rose's eyeball lives in the face mesh
+            # as Eye_Mat, aligned with the eyelids and lashes.
+            fill_slot(host_ob, obj_name, [], mats)
+            print("   -- slot %d (%s) emptied" % (mesh_id, obj_name))
+            kept.append(host_ob)
             continue
         nv, nf, nm = fill_slot(host_ob, obj_name, sources, mats)
         print("   %-18s slot=%d verts=%-6d faces=%-6d mats=%d"

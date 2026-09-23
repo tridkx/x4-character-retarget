@@ -432,6 +432,13 @@ def main():
             me.from_pydata(sverts, [], sfaces_local)
             me.validate(verbose=False)
             me.update()
+            # Smooth shading.  RE8's meshes are smooth-shaded and `from_pydata`
+            # leaves everything flat; on a decimated mesh flat shading turns
+            # every irregular triangle into a visible facet, which is the
+            # "furrowed" look in game.  It also merges normal seams, so the
+            # exported vertex count drops instead of rising.
+            for poly in me.polygons:
+                poly.use_smooth = True
             # real UVs from the source mesh (per-vertex -> per-loop)
             uvl = [(collected_uv[i - base_off] if 0 <= i - base_off < len(collected_uv) else (0.0, 0.0))
                    for i in used]

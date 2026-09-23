@@ -60,6 +60,13 @@ ALIGN_PAIRS = [
 #: (Rose's Hip and Spine_0 share a position, which would give a zero axis)
 _MIN_AXIS_LEN = 2.0
 
+#: X4 drives the eye dummies with a look-at controller.  Rose's eyeball and
+#: eyelid geometry sits ~9 cm away from those bones, so a gaze rotation swings
+#: it out of the head -- the "eyes occasionally drift off the face" report.
+#: These bones' weights are moved onto the head instead.
+EYE_CONTROLLERS = {'left_eye_dummy', 'right_eye_dummy'}
+HEAD_BONE = 'Bip01 Head'
+
 
 def rose_to_blender(p_m):
     """RE8 source (x, up, forward) metres -> X4/Blender arrangement cm.
@@ -273,11 +280,41 @@ class BindPoseRetarget:
             a = self.anchor.get(b)
             if a in self.direct:
                 self.delta[B] = self.direct[a]
+        # order matters: harmonise first, so the eyeballs ride the adjusted
+        # head transform rather than the raw one
+        self._harmonise_head_neck()
         self._bind_eyes_to_head()
         if self.verbose:
             print('  bind transfer: %d direct bones, %d target bones, '
                   '%d without a bone axis' % (len(self.direct), len(self.delta),
                                               self.n_axis_fallback))
+
+    def _harmonise_head_neck(self):
+        """Give the neck and head chain one shared offset.
+
+        X4's `Bip01 Head` sits 7.8 cm above `Bip01 Neck`; Rose's sits 13.7 cm
+        above hers -- her neck is nearly twice as long.  Aligning each bone to
+        its own target therefore drags the head 5.9 cm down while pushing the
+        collar up, and the character ends up looking hunched into her jacket
+        (measured: the eyeball-to-collar gap collapses from 7.5 cm as authored
+        to 0.6 cm).  Splitting the difference puts each bone ~3 cm from its
+        own target and restores the authored spacing.
+        """
+        neck = head = None
+        for b, rec in self.direct.items():
+            B = map_bone(b)
+            if B == 'Bip01 Neck' and neck is None:
+                neck = rec
+            elif B == HEAD_BONE and head is None:
+                head = rec
+        if neck is None or head is None:
+            return
+        shared = 0.5 * ((neck[1] - neck[0]) + (head[1] - head[0]))
+        for bone, rec in (('Neck', neck), ('Head', head)):
+            src = rec[0]
+            x4_bone = 'Bip01 Neck' if bone == 'Neck' else HEAD_BONE
+            self.delta[x4_bone] = (src, src + shared, rec[2])
+        self.head_neck_shared = float(np.linalg.norm(shared))
 
     def _bind_eyes_to_head(self):
         """Ride the eyeballs on the head transform rather than the eye bones.
@@ -290,11 +327,14 @@ class BindPoseRetarget:
         only their rest position follows the head, which is what keeps them in
         the sockets.
         """
-        head = None
-        for b, rec in self.direct.items():
-            if map_bone(b) == 'Bip01 Head':
-                head = rec
-                break
+        # read the *adjusted* head transform (harmonise runs first), otherwise
+        # the eyeballs ride the raw one and stay sunk in the collar
+        head = self.delta.get(HEAD_BONE)
+        if head is None:
+            for b, rec in self.direct.items():
+                if map_bone(b) == HEAD_BONE:
+                    head = rec
+                    break
         if head is None:
             return
         hsrc, hdst, hR = head
@@ -318,6 +358,8 @@ class BindPoseRetarget:
                 B = map_bone(weighted_bones[bid])
                 if B is None or B not in self.x4:
                     continue
+                if B in EYE_CONTROLLERS:
+                    B = HEAD_BONE
                 acc[B] = acc.get(B, 0.0) + float(w)
             tot = sum(acc.values())
             out.append({k: v / tot for k, v in acc.items()} if tot > 1e-9 else {})

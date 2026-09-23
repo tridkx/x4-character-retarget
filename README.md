@@ -52,6 +52,8 @@ RE8 .mesh (weights)  ->  bind-pose transfer onto the X4 skeleton  ->  .blend
 | Skin weight recovery | read straight from RE8 `.mesh` (the existing export tooling dropped them) |
 | Retarget onto the X4 bind pose | per-bone transfer; **6.89 cm** mean vertex→bone error vs vanilla **7.17 cm** |
 | Pose behaviour | elbow / knee / walk / twist renders match vanilla |
+| Eyes | real eyeball (in the face mesh) in the socket; head-bound so look-at cannot swing it out |
+| Shading | smooth-shaded, so decimated triangles do not read as facets |
 | Skeleton compatibility | 91/91 bind payloads **byte-identical** to vanilla in both exported assets |
 | Texture pipeline | `NRMR` split into BC5 normal + BC4 smoothness, own BC1/BC3 encoder |
 | Mod packaging | loads in game; no crash, no VRAM blowup, model appears |
