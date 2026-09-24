@@ -23,9 +23,27 @@ Blender object names must match [A-Za-z0-9_]+ and material names must match
     blender -b --factory-startup --python tools/build_mod.py
 """
 
+
+
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+_X4_SHARED = os.path.join(_X4_DEV_ROOT, 'shared')
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
 import importlib
 import json
-import os
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import shutil
 import subprocess
 import sys
@@ -35,9 +53,9 @@ import bpy
 import pathlib
 from mathutils import Matrix
 
-WORK = r"D:\dsh-x4\work"
-ADDON_DIR = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
-X4_ROOT = r"D:\dsh-x4\shared\x4root"
+WORK = os.path.join(_X4_DEV_ROOT, 'work')
+ADDON_DIR = os.path.join(_X4_SHARED, r"X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03")
+X4_ROOT = os.path.join(_X4_SHARED, r"x4root")
 RE8_MODELS = r"D:\dsh-mod\re8\output\models\Rose_Adult_ShadowsOfRose"
 STAGE1 = os.path.join(WORK, "rose_x4_stage1.blend")
 

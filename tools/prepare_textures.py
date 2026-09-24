@@ -8,8 +8,22 @@ Runs under the *system* Python (Blender's bundled Python has no PIL), then
     python tools/prepare_textures.py
 """
 
-import json
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+import json
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import re
 import sys
 
@@ -24,7 +38,7 @@ sys.path.insert(0, HERE)
 import bc_encode          # noqa: E402
 import tex_convert        # noqa: E402
 
-WORK = r"D:\dsh-x4\work"
+WORK = os.path.join(_X4_DEV_ROOT, 'work')
 RE8_MODELS = r"D:\dsh-mod\re8\output\models\Rose_Adult_ShadowsOfRose"
 RE8_RAW = r"D:\dsh-mod\re8\output\raw_natives\natives\stm\_ge\character\ch\ch01\6000"
 STAGE1_PARTS = os.path.join(WORK, "stage1_parts.json")

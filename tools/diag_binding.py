@@ -3,14 +3,33 @@
 Frame-independent binding check: how far is each vertex from the bones that
 drive it?  Big distances mean weights landed on unrelated bones.
 """
+
+
+
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+_X4_SHARED = os.path.join(_X4_DEV_ROOT, 'shared')
+
+import os
 import importlib, os, sys
 import numpy as np
 import bpy, addon_utils, pathlib
 
-ADDON = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
-ROOT = r"D:\dsh-x4\shared\x4root"
+# tools/ 与 work/ 两种深度都恰好再上两层到 dsh-x4（已用断言实测）
+
+ADDON = os.path.join(_X4_SHARED, r"X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03")
+ROOT = os.path.join(_X4_SHARED, r"x4root")
 sys.path.insert(0, ADDON)
-sys.path.insert(0, r"D:\dsh-x4\work\tools")
+sys.path.insert(0, os.path.join(_X4_DEV_ROOT, 'x4-character-retarget', 'work', r"tools"))
 
 import build_mod  # noqa: E402
 
@@ -64,7 +83,7 @@ def analyse(xac_path, label):
 
 
 if __name__ == '__main__':
-    V = r"D:\dsh-x4\work\vanilla\assets\characters\argon"
+    V = os.path.join(_X4_DEV_ROOT, 'x4-character-retarget', 'work', r"vanilla\assets\characters\argon")
     analyse(V + r"\bodies\char_arg_f_sweater_leggings_civ_01.xac", "原版 body（参照）")
-    analyse(r"D:\dsh-x4\work\x4_rose_mod\assets\characters\argon\rose\bodies\rose_body.xac",
+    analyse(os.path.join(_X4_DEV_ROOT, 'x4-character-retarget', 'work', r"x4_rose_mod\assets\characters\argon\rose\bodies\rose_body.xac"),
             "我的 rose_body")

@@ -8,9 +8,28 @@ Each shot rotates one joint chain about its own joint and renders a side and a
 front view.  A mesh whose weights landed on the wrong bone tears or swings the
 wrong way here, which is exactly the in-game symptom.
 """
+
+
+
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+_X4_SHARED = os.path.join(_X4_DEV_ROOT, 'shared')
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
 import importlib
 import math
-import os
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import pathlib
 import sys
 
@@ -18,13 +37,13 @@ import addon_utils
 import bpy
 from mathutils import Matrix, Vector
 
-ADDON = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
+ADDON = os.path.join(_X4_SHARED, r"X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03")
 
 #: set by the optional third argv: render with diffuse textures instead of a
 #: flat material colour
 TEXTURE_MODE = False
-ROOT = r"D:\dsh-x4\shared\x4root"
-OUT = r"D:\dsh-x4\work\preview\posetest"
+ROOT = os.path.join(_X4_SHARED, r"x4root")
+OUT = os.path.join(_X4_DEV_ROOT, 'work')
 sys.path.insert(0, ADDON)
 
 #: pose name -> [(bone, world axis, degrees)]

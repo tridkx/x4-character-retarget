@@ -23,11 +23,29 @@ What it does
 Stage 2 (separate step) wires materials and calls the addon's export_package.
 """
 
+
+
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+_X4_SHARED = os.path.join(_X4_DEV_ROOT, 'shared')
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
 import bpy
 import numpy as np
 import json
 import math
-import os
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import sys
 import importlib
 import addon_utils
@@ -36,9 +54,9 @@ import pathlib
 # --------------------------------------------------------------------------
 # paths / config
 # --------------------------------------------------------------------------
-WORK = r"D:\dsh-x4\work"
-ADDON_DIR = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
-X4_ROOT = r"D:\dsh-x4\shared\x4root"
+WORK = os.path.join(_X4_DEV_ROOT, 'work')
+ADDON_DIR = os.path.join(_X4_SHARED, r"X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03")
+X4_ROOT = os.path.join(_X4_SHARED, r"x4root")
 RE8_TOOLS = r"D:\dsh-mod\re8\tools\RE-Mesh-Editor-main"
 RE8_RAW = r"D:\dsh-mod\re8\output\raw_natives\natives\stm\_ge\character\ch\ch01\6000"
 RE8_MODELS = r"D:\dsh-mod\re8\output\models\Rose_Adult_ShadowsOfRose"

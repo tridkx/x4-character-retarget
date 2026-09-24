@@ -4,20 +4,39 @@ Render the skeleton as thin geometry on top of the mesh, so a binding
 mismatch is visible instead of inferred.  Also renders the vanilla asset
 the same way as a control.
 """
+
+
+
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+_X4_SHARED = os.path.join(_X4_DEV_ROOT, 'shared')
+
+import os
 import importlib, os, sys
 import numpy as np
 import bpy, addon_utils, pathlib
 from mathutils import Vector
 
-ADDON = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
-ROOT = r"D:\dsh-x4\shared\x4root"
-OUT = r"D:\dsh-x4\work\preview\skel"
+# tools/ 与 work/ 两种深度都恰好再上两层到 dsh-x4（已用断言实测）
+
+ADDON = os.path.join(_X4_SHARED, r"X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03")
+ROOT = os.path.join(_X4_SHARED, r"x4root")
+OUT = os.path.join(_X4_DEV_ROOT, 'x4-character-retarget', 'work', r"preview\skel")
 sys.path.insert(0, ADDON)
 
 TARGETS = [
     (os.path.join(ROOT, r"assets\characters\argon\bodies\char_arg_f_sweater_leggings_civ_01.xac"),
      "vanilla_body"),
-    (r"D:\dsh-x4\work\x4_rose_mod\assets\characters\argon\rose\bodies\rose_body.xac",
+    (os.path.join(_X4_DEV_ROOT, 'x4-character-retarget', 'work', r"x4_rose_mod\assets\characters\argon\rose\bodies\rose_body.xac"),
      "rose_body"),
 ]
 

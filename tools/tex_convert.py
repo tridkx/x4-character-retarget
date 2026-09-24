@@ -17,7 +17,21 @@ Diffuse / Normal / Metal / Smoothness and validates the DDS pixel format:
   Smoothness   BC4           _nrmr A, inverted (roughness -> smoothness)
 """
 
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import sys
 
 from PIL import Image
@@ -113,8 +127,8 @@ def convert_material_textures(key, info, tex_root, out_dir, tmp_dir,
 
 if __name__ == '__main__':
     tex_root = r"D:\dsh-mod\re8\output\models\Rose_Adult_ShadowsOfRose"
-    out_dir = r"D:\dsh-x4\work\tex_out"
-    tmp_dir = r"D:\dsh-x4\work\tex_tmp"
+    out_dir = os.path.join(_X4_DEV_ROOT, 'work')
+    tmp_dir = os.path.join(_X4_DEV_ROOT, 'work')
     info = {"albedo": "../../textures/ch01_6000_upperbody_albd.png",
             "normalRoughness": "../../textures/ch01_6000_upperbody_nrmr.png"}
     res = convert_material_textures('rose.body', info, tex_root, out_dir, tmp_dir)

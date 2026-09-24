@@ -43,12 +43,26 @@ Both `rose_head` and `rose_body` packages land in one extension, because X4
 loads extensions by id (`ext_01.cat`), not per asset.
 """
 
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import re
 import shutil
 import sys
 
-WORK = r"D:\dsh-x4\work"
+WORK = os.path.join(_X4_DEV_ROOT, 'work')
 PKG = os.path.join(WORK, "x4cc_pkg")
 MOD_ID = "x4_rose_mod"
 

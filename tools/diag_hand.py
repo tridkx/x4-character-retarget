@@ -1,15 +1,32 @@
 # -*- coding: utf-8 -*-
 """Which finger bones are mis-assigned on Rose's hands?"""
+
+
+
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+_X4_SHARED = os.path.join(_X4_DEV_ROOT, 'shared')
+
+import os
 import importlib, os, sys
 from collections import defaultdict
 import numpy as np
 import bpy, addon_utils, pathlib
-ADDON = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
-ROOT = r"D:\dsh-x4\shared\x4root"
+ADDON = os.path.join(_X4_SHARED, r"X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03")
+ROOT = os.path.join(_X4_SHARED, r"x4root")
 sys.path.insert(0, ADDON)
-sys.path.insert(0, r"D:\dsh-x4\work\tools")
+sys.path.insert(0, os.path.join(_X4_DEV_ROOT, 'x4-character-retarget', 'work', r"tools"))
 
-V = r"D:\dsh-x4\work\vanilla\assets\characters\argon"
+V = os.path.join(_X4_DEV_ROOT, 'x4-character-retarget', 'work', r"vanilla\assets\characters\argon")
 path = (sys.argv[-1] if sys.argv[-1].endswith('.xac')
         else V + r"\bodies\char_arg_f_sweater_leggings_civ_01.xac")
 
@@ -18,6 +35,8 @@ importlib.import_module("X4CharacterConverter")
 addon_utils.enable("X4CharacterConverter", default_set=True)
 bpy.context.preferences.addons["X4CharacterConverter"].preferences.data_root = ROOT + os.sep
 from X4CharacterConverter import addon as A
+
+# tools/ 与 work/ 两种深度都恰好再上两层到 dsh-x4（已用断言实测）
 A.import_actor(bpy.context, pathlib.Path(path))
 arm = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
 mw = arm.matrix_world

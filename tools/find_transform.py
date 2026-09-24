@@ -12,12 +12,31 @@ For each candidate transform T:
 Metric: distance between hand mesh centroid and its driving bone.
 Vanilla assets score ~2 cm.
 """
+
+
+
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+_X4_SHARED = os.path.join(_X4_DEV_ROOT, 'shared')
+
+import os
 import importlib, itertools, os, sys
 import numpy as np
 import bpy, addon_utils, pathlib
-WORK = r"D:\dsh-x4\work"
-ADDON = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
-ROOT = r"D:\dsh-x4\shared\x4root"
+
+# tools/ 与 work/ 两种深度都恰好再上两层到 dsh-x4（已用断言实测）
+WORK = os.path.join(_X4_DEV_ROOT, 'x4-character-retarget', 'work')
+ADDON = os.path.join(_X4_SHARED, r"X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03")
+ROOT = os.path.join(_X4_SHARED, r"x4root")
 sys.path.insert(0, ADDON)
 sys.path.insert(0, os.path.join(WORK, "tools"))
 

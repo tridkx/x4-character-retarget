@@ -20,9 +20,28 @@ in game.
 
     blender -b --factory-startup --python tools/preview_poses.py
 """
+
+
+
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+_X4_SHARED = os.path.join(_X4_DEV_ROOT, 'shared')
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
 import importlib
 import math
-import os
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import sys
 
 import numpy as np
@@ -31,9 +50,9 @@ import addon_utils
 import pathlib
 from mathutils import Euler, Vector
 
-WORK = r"D:\dsh-x4\work"
-ROOT = r"D:\dsh-x4\shared\x4root"
-ADDON_DIR = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
+WORK = os.path.join(_X4_DEV_ROOT, 'work')
+ROOT = os.path.join(_X4_SHARED, r"x4root")
+ADDON_DIR = os.path.join(_X4_SHARED, r"X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03")
 HOST = r"assets\characters\argon\heads\char_arg_f_dyn_blend_head.xac"
 OUT = os.path.join(WORK, "preview", "poses")
 

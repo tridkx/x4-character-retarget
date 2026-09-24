@@ -8,9 +8,24 @@ albedo maps.  Useful when a retargeted part "looks wrong" -- this separates
 "the source data really is like that / RE8's shaders added the rest" from
 "our pipeline broke it".
 """
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
+_X4_WORK_PKG = os.path.dirname(os.path.abspath(__file__))
+_X4_DEV_ROOT = _X4_WORK_PKG
+while os.path.basename(_X4_DEV_ROOT) != 'x4-character-retarget':
+    _X4_UP = os.path.dirname(_X4_DEV_ROOT)
+    if _X4_UP == _X4_DEV_ROOT:
+        break
+    _X4_DEV_ROOT = _X4_UP
+_X4_DEV_ROOT = os.path.dirname(_X4_DEV_ROOT)
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
+import os
 import json
 import math
-import os
+
+# --- 项目根自动定位（work 已并入 x4-character-retarget）---
 import sys
 
 import bpy
@@ -18,7 +33,7 @@ from mathutils import Vector
 
 RE8_TOOLS = r"D:\dsh-mod\re8\tools\RE-Mesh-Editor-main"
 RE8_MODELS = r"D:\dsh-mod\re8\output\models\Rose_Adult_ShadowsOfRose"
-OUT = r"D:\dsh-x4\work\preview\source"
+OUT = os.path.join(_X4_DEV_ROOT, 'work')
 sys.path.insert(0, RE8_TOOLS)
 
 from modules.mesh.file_re_mesh import readREMesh            # noqa: E402
