@@ -131,8 +131,12 @@ CREDITS
 
   - X4 Character Converter by DiCrash / Orion -- without this exporter none of
     this would exist
+    https://www.nexusmods.com/x4foundations/mods/2152
   - RE-Mesh-Editor by Percyqaz and contributors
   - EGOSOFT's X Tools and the X4 modding documentation
+
+  (These are the tools used to build this mod.  Players do not need to install
+  any of them.)
 
 
 LEGAL
