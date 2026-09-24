@@ -240,7 +240,7 @@ def foot_vertex_mask(weights):
     for wd in weights:
         s = 0.0
         for bn, wv in wd.items():
-            if bn.endswith(' Foot') or 'Toe' in bn or bn.endswith(' Calf'):
+            if bn.endswith(' Foot') or 'Toe' in bn:
                 s += wv
         out.append(s > 0.5)
     return np.array(out, bool)
@@ -257,8 +257,10 @@ def lift_feet(verts, weights, ground=GROUND_Z):
     mask = foot_vertex_mask(weights)
     if not mask.any():
         return verts, 0.0
+    # align either way: the feet must meet the floor, whether the transfer
+    # left them sunk into it or hanging above it
     dz = ground - float(verts[mask][:, 2].min())
-    if dz <= 0.0:
+    if abs(dz) < 0.05:
         return verts, 0.0
     out = verts.copy()
     out[mask, 2] += dz

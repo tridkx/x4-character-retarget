@@ -67,6 +67,23 @@ _MIN_AXIS_LEN = 2.0
 EYE_CONTROLLERS = {'left_eye_dummy', 'right_eye_dummy'}
 HEAD_BONE = 'Bip01 Head'
 
+#: Bones that are translated but never rotated.
+#:
+#: X4's foot chain is far steeper than Rose's (ankle-to-toe drop 11.4 cm against
+#: 6.3), so matching axis directions tips the foot 16 degrees forward; the heel
+#: then hangs 5.4 cm above the deck while only the ball of the foot touches
+#: (vanilla keeps the whole sole down at -0.2).  Position matters far more than
+#: axis here, so the feet keep their authored attitude.
+NO_ROTATE_BONES = {'Bip01 L Foot', 'Bip01 R Foot', 'Bip01 L Toe0', 'Bip01 R Toe0'}
+
+#: How much of a finger's own target offset to keep.  Matching every finger to
+#: its own X4 target moves neighbours up to 6 cm apart and tears the web
+#: between thumb and index; riding the palm rigidly keeps the hand's shape but
+#: leaves the fingers 5.8 cm off their bones, so bending animation would fling
+#: them.  Half way keeps the web intact and the fingers close enough to their
+#: bones to still bend sensibly.
+FINGER_OWN_OFFSET = 0.5
+
 
 def rose_to_blender(p_m):
     """RE8 source (x, up, forward) metres -> X4/Blender arrangement cm.
@@ -233,6 +250,9 @@ class BindPoseRetarget:
                 continue
             q = np.asarray(self.x4[B]['head'], float)
             u, v = self._pair_axis(b, B)
+            if B in NO_ROTATE_BONES:
+                self.direct[b] = (self.src[b], q, np.eye(3))
+                continue
             if u is None or v is None:
                 # no anatomical direction available (pelvis, which coincides
                 # with its own child): leave the bone unrotated rather than
@@ -284,10 +304,57 @@ class BindPoseRetarget:
         # head transform rather than the raw one
         self._harmonise_head_neck()
         self._bind_eyes_to_head()
+        self._fingers_ride_the_palm()
+        self._feet_share_one_offset()
         if self.verbose:
             print('  bind transfer: %d direct bones, %d target bones, '
                   '%d without a bone axis' % (len(self.direct), len(self.delta),
                                               self.n_axis_fallback))
+
+    def _fingers_ride_the_palm(self):
+        """Translate the finger chains with the palm instead of individually.
+
+        Matching each finger bone to its own X4 target moves neighbouring
+        fingers by up to 6 cm in different directions, and the vertices that
+        blend between them -- the web between thumb and index -- collapse into
+        a dimple.  Riding the palm keeps the hand's shape; the fingers keep
+        their own rotation, so bending still animates correctly.
+        """
+        keep = FINGER_OWN_OFFSET
+        for side in ('L', 'R'):
+            hand = self.delta.get('Bip01 %s Hand' % side)
+            if hand is None:
+                continue
+            dhand = hand[1] - hand[0]
+            prefix = 'Bip01 %s Finger' % side
+            for name in list(self.delta):
+                if not name.startswith(prefix):
+                    continue
+                src, dst, R = self.delta[name]
+                own = dst - src
+                self.delta[name] = (src, src + keep * own + (1.0 - keep) * dhand, R)
+
+    def _feet_share_one_offset(self):
+        """Translate the whole foot with the ankle instead of bone by bone.
+
+        X4 puts the toe joint almost on the deck (Toe0 z = 0.12) where Rose has
+        it 3 cm up, so the toe target moves down 3.1 cm while the ankle target
+        moves *up* 2.0 cm.  Applied per bone that levers the foot: the heel
+        ends up 4 cm in the air with only the ball touching (vanilla keeps the
+        whole sole at -0.2).  One shared offset keeps the sole flat; the ankle
+        is the joint that carries the foot, so its offset wins.
+        """
+        for side in ('L', 'R'):
+            ankle = self.delta.get('Bip01 %s Foot' % side)
+            if ankle is None:
+                continue
+            d = ankle[1] - ankle[0]
+            for suffix in ('Foot', 'Toe0', 'Toe0Nub'):
+                name = 'Bip01 %s %s' % (side, suffix)
+                rec = self.delta.get(name)
+                if rec is None:
+                    continue
+                self.delta[name] = (rec[0], rec[0] + d, rec[2])
 
     def _harmonise_head_neck(self):
         """Give the neck and head chain one shared offset.
