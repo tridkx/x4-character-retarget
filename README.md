@@ -62,11 +62,32 @@ RE8 .mesh (weights)  ->  bind-pose transfer onto the X4 skeleton  ->  .blend
 
 | Item | State |
 |---|---|
-| In-game re-test | mod is installed in `extensions/x4_rose_mod`; last round fixed eyes, sunken soles and the vertex budget |
+| In-game re-test | mod is installed in `extensions/x4_rose_mod` |
+| **Hands and hair are rigid** | fingers are bound to the palm and hair to `Bip01 Head`, so neither moves on its own. Deliberate: see "Known compromises" below. |
+| **Hand surface still not perfectly smooth** | much better since the hands stopped being decimated, but the normal map on the fingers is still not as clean as vanilla's |
 | Eyeball shading | RE8 drives the iris from shader params; X4 only takes diffuse/normal/smoothness, so the eye reads pale grey |
-| Vertex budget | kept at ~8.5x vanilla per asset; going to 15x brought back the in-station flicker |
+| Vertex budget | kept near 6x vanilla per asset; 15x brought back the in-station flicker |
 | Long hair | bound to `Bip01 Head` — the X4 Biped has no hair chain, so it moves rigidly with the head |
 | Cloth bones | `jacket_*` collapse onto the spine; there is no per-strand cloth simulation |
+
+### Known compromises
+
+Three of these are deliberate trades rather than open bugs -- each one bought a
+visible defect somewhere else:
+
+| Compromise | What it fixed | What it costs |
+|---|---|---|
+| Fingers bind to the palm (`FINGERS_BIND_TO_PALM`) | the web between thumb and index tore open to the base of the palm, because Rose authors the fingers together and the X4 biped splays them | fingers do not animate individually; an NPC never shows it |
+| Hair binds to `Bip01 Head` | there is no hair chain in the 91-bone Biped to bind to | hair is a rigid shell that turns with the head |
+| Feet share the ankle's offset (`_feet_share_one_offset`) | per-bone offsets levered the foot, hanging the heel 5.4 cm above the deck | toes sit ~5 cm from their bones |
+| Camera-frustum-free decimation ratios | the vertex budget, which X4 punishes with station-wide flicker | faces and hands are coarser than the source |
+
+The hand's normal map is the one item here that is still a defect rather than a
+trade: tangents follow UVs, so any decimation on a hand rewrites the finger UVs
+and the normal map loses its footing. The hands are no longer decimated at all,
+which removed the worst of it (rings around the fingers), but the remaining
+roughness suggests the tangent basis is still not clean -- the next thing to
+try is exporting tangents explicitly rather than letting the add-on derive them.
 
 ## Key technical findings
 
