@@ -221,6 +221,12 @@ def fill_slot(host_ob, obj_name, sources, materials):
     me.from_pydata(verts, [], [(f[0], f[1], f[2]) for f in faces])
     me.validate(verbose=False)
     me.update()
+    # Smooth shading again: this mesh is rebuilt from scratch here, and
+    # from_pydata defaults to flat.  The exporter writes `loop.normal`, so
+    # without this every decimated triangle exports its own face normal and
+    # the model reads as faceted in game no matter what stage 1 set.
+    for poly in me.polygons:
+        poly.use_smooth = True
     for m in mat_order:
         me.materials.append(m)
     for poly, f in zip(me.polygons, faces):

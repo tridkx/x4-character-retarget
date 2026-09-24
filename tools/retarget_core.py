@@ -82,7 +82,12 @@ NO_ROTATE_BONES = {'Bip01 L Foot', 'Bip01 R Foot', 'Bip01 L Toe0', 'Bip01 R Toe0
 #: leaves the fingers 5.8 cm off their bones, so bending animation would fling
 #: them.  Half way keeps the web intact and the fingers close enough to their
 #: bones to still bend sensibly.
-FINGER_OWN_OFFSET = 0.5
+#: 1.0 = every finger hits its own target (shape faithful, web pinched);
+#: 0.0 = rigid with the palm (web fine, fingers 5.8 cm off their bones).
+#: Anything in between moves each finger differently and *distorts* them --
+#: worse than either end.  The web pinch is handled by smoothing the weights
+#: instead (build_rose_x4.smooth_vertex_weights), so keep this at 1.0.
+FINGER_OWN_OFFSET = 1.0
 
 
 def rose_to_blender(p_m):

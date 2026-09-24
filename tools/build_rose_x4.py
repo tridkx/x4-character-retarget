@@ -215,18 +215,20 @@ def load_re8_part(mesh_rel, skel_json):
 #: clever heuristic, so ratio alone decides.
 #: Budget matters: X4 instances NPCs (dozens on screen in a station) and the
 #: engine starts flickering / corrupting the map once the asset is far above
-#: vanilla's ~5k vertices per asset.  15x was enough to bring the flicker
-#: back; the numbers below land near 9x, which was previously stable.
+#: vanilla's ~5k vertices per asset.  (The exported count counts a vertex per
+#: UV *and normal* seam, so smoothing the normals cut the exported total by
+#: 70% -- which is why these ratios can be far more generous than the old
+#: ones while shipping fewer vertices than the 9x build that was stable.)
 DECIMATE_RATIO = {
-    'hair': 0.03,
-    'jacket': 0.11,
-    'body': 0.09,
-    'slingbelt': 0.35,
-    # hands keep more geometry: fingers are thin and collapse badly
-    'hand_l': 0.45,
-    'hand_r': 0.45,
-    'eyes': 0.35,
-    'face': 0.17,
+    'hair': 0.10,
+    'jacket': 0.35,
+    'body': 0.30,
+    'slingbelt': 0.70,
+    # hands keep the most geometry: fingers are thin and collapse badly
+    'hand_l': 0.75,
+    'hand_r': 0.75,
+    'eyes': 0.50,
+    'face': 0.50,
 }
 DECIMATE_FLOOR = 200
 
@@ -297,6 +299,60 @@ def decimate(ob, ratio, floor=DECIMATE_FLOOR):
         if not any(ge.weight > 1e-6 for ge in v.groups):
             unweighted += 1
     return len(ob.data.vertices), unweighted
+
+
+def smooth_vertex_weights(ob, rounds=2, alpha=0.5):
+    """Laplacian-smooth the skin weights across the mesh topology.
+
+    Where two neighbouring bones pull in very different directions -- thumb vs
+    index across the web of the hand -- a sharp weight transition makes the
+    surface pinch inwards.  Averaging each vertex's weights with its
+    neighbours spreads the transition out, which is how the pinch is removed
+    without moving any bone.
+    """
+    me = ob.data
+    n = len(me.vertices)
+    adj = [[] for _ in range(n)]
+    for e in me.edges:
+        a, b = e.vertices
+        adj[a].append(b)
+        adj[b].append(a)
+    gname = {g.index: g.name for g in ob.vertex_groups}
+    W = [{gname[ge.group]: ge.weight for ge in v.groups
+          if ge.weight > 1e-6 and ge.group in gname} for v in me.vertices]
+    for _ in range(rounds):
+        NW = []
+        for i, w in enumerate(W):
+            acc = {k: v * (1.0 - alpha) for k, v in w.items()}
+            nb = adj[i]
+            if nb:
+                share = alpha / len(nb)
+                for j in nb:
+                    for k, val in W[j].items():
+                        acc[k] = acc.get(k, 0.0) + val * share
+            tot = sum(acc.values())
+            NW.append({k: v / tot for k, v in acc.items() if v > 1e-6}
+                      if tot > 1e-9 else w)
+        W = NW
+    for g in list(ob.vertex_groups):
+        ob.vertex_groups.remove(g)
+    groups = {}
+    for i, w in enumerate(W):
+        # the exporter demands weights summing to exactly 1.0, and rounding
+        # the tail away leaves ~1e-4 behind -- fold the residue into the
+        # dominant bone
+        tot = sum(w.values())
+        if tot > 1e-9:
+            w = {k: v / tot for k, v in w.items()}
+            top = max(w, key=w.get)
+            w[top] += 1.0 - sum(w.values())
+        for name, val in w.items():
+            g = groups.get(name)
+            if g is None:
+                g = ob.vertex_groups.new(name=name)
+                groups[name] = g
+            g.add([i], val, 'REPLACE')
+    return len(groups)
 
 
 def make_material(name, info):
@@ -462,6 +518,7 @@ def main():
             ratio = DECIMATE_RATIO.get(tag, 0.1)
             nv_before = len(me.vertices)
             nv_after, unw = decimate(ob, ratio)
+            smooth_vertex_weights(ob)
             if unw < 0:
                 print("      %s: decimate would leave %d verts, keeping %d"
                       % (ob.name, nv_after, nv_before))

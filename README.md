@@ -53,7 +53,7 @@ RE8 .mesh (weights)  ->  bind-pose transfer onto the X4 skeleton  ->  .blend
 | Retarget onto the X4 bind pose | per-bone transfer; **6.89 cm** mean vertex→bone error vs vanilla **7.17 cm** |
 | Pose behaviour | elbow / knee / walk / twist renders match vanilla |
 | Eyes | real eyeball (in the face mesh) in the socket; head-bound so look-at cannot swing it out |
-| Shading | smooth-shaded, so decimated triangles do not read as facets |
+| Shading | smooth normals all the way to the .xac (both stages set `use_smooth`), which also cut exported vertices by 70% |
 | Skeleton compatibility | 91/91 bind payloads **byte-identical** to vanilla in both exported assets |
 | Texture pipeline | `NRMR` split into BC5 normal + BC4 smoothness, own BC1/BC3 encoder |
 | Mod packaging | loads in game; no crash, no VRAM blowup, model appears |
@@ -188,10 +188,15 @@ ships at **~8.5×** vanilla (~71 k across both assets). 15× brought the flicker
 back; the numbers below are the ones that held:
 
 ```python
-{'hair': 0.03, 'jacket': 0.11, 'body': 0.09,
- 'slingbelt': 0.35, 'hand_l': 0.45, 'hand_r': 0.45,
- 'eyes': 0.35, 'face': 0.17}
+{'hair': 0.10, 'jacket': 0.35, 'body': 0.30,
+ 'slingbelt': 0.70, 'hand_l': 0.75, 'hand_r': 0.75,
+ 'eyes': 0.50, 'face': 0.50}
 ```
+
+The exported count includes a vertex per UV *and normal* seam, so smooth normals
+are worth as much as decimation: emitting them cut the total by 70% and paid
+for the much denser mesh above. The character now ships at **6.1x** vanilla
+with about 2.3x the triangles of the previous 8.3x build.
 
 Two more things sit between the retarget and a usable asset:
 
