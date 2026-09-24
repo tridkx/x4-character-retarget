@@ -127,6 +127,21 @@ REQUIREMENTS
   no game files.
 
 
+AI USAGE
+
+  The tooling behind this mod -- the reverse-engineering analysis, the skeleton
+  retargeting algorithm, the texture and packaging pipeline -- was written with
+  the help of an AI assistant. The design decisions, the in-game testing and the
+  diagnosis of every issue were done by the author; the AI implemented the code
+  and analysed the data.
+
+  The project keeps a full git commit history and a round-by-round engineering
+  log, which serves as the development record.
+
+  The model and textures are taken from the game and converted; they are not
+  AI-generated.
+
+
 CREDITS
 
   - X4 Character Converter by DiCrash / Orion -- without this exporter none of
