@@ -87,6 +87,11 @@ BASE_MAT_RE = re.compile(r'_(?:stitch|base|detail|decal)_mat$', re.I)
 #: against the jacket's (80,75,66), which is the pale patch across the waist.
 SHARED_SURFACE = {
     'metal_mat': 'Jacket_Mat',
+    # The zip backing is card geometry too: its UVs land on a magenta patch of
+    # the upper-body atlas, so it renders as bright pink chips on the seams
+    # (reported in game as "a pink thing under the hat" -- the seams run up to
+    # the shoulder).  Give it the coat's colour and keep its normal/roughness.
+    'jacket_zipper_base_mat': 'Jacket_Mat',
 }
 
 #: see tex_convert.MAX_TEXTURE_SIZE
@@ -133,7 +138,7 @@ def merge_eye_ao(albedo_path):
     return dst
 
 
-def write_placeholder(path, rgb, alpha=False, size=16):
+def write_placeholder(path, rgb, alpha=False, size=128):
     arr = np.zeros((size, size, 3), np.uint8)
     arr[:, :] = rgb
     if alpha:
@@ -252,7 +257,7 @@ def base_material_smoothness(re8_name, mat_defs):
     return float(1.0 - rough.mean())
 
 
-def write_smoothness_placeholder(path, value, size=16):
+def write_smoothness_placeholder(path, value, size=128):
     """Flat BC4 smoothness map of a single value (0..1)."""
     v = int(round(max(0.0, min(1.0, value)) * 255))
     arr = np.full((size, size, 3), v, np.uint8)
@@ -294,39 +299,58 @@ def main():
 
         shared = SHARED_SURFACE.get(local_name(re8_name))
         if shared and shared in derived:
-            # It has an atlas of its own, but it is card geometry lying on
-            # another material, so its own tiling UVs sample whatever happens
-            # to be there (pale brown, for the parka fittings).  Take the base
-            # material's colour instead and keep its normal/roughness maps.
-            ph = os.path.join(DDS_DIR, '%s_diff.dds' % safe)
-            rgb = derived[shared]
-            write_placeholder(ph, rgb, alpha=alpha)
-            produced['Diffuse'] = ph
-            print('  %-26s diffuse overridden with %-16s (from %s)'
-                  % (re8_name, str(rgb), shared))
+            # Card geometry lying on another material: its own tiling UVs
+            # sample whatever happens to be there (magenta chips, for the zip
+            # backing).  Point it at the base material's *texture* rather than
+            # a flat colour swatch -- a 16x16 solid was rejected by the game
+            # and rendered as its missing-texture magenta, which is exactly
+            # what this was trying to fix.  Reusing the verified 1024px map
+            # keeps the colour right and the tiling reads as fabric.
+            base_diff = os.path.join(
+                DDS_DIR, '%s_diff.dds' % full_name(shared).replace('.', '_'))
+            if os.path.exists(base_diff):
+                produced['Diffuse'] = base_diff
+                print('  %-26s diffuse -> %s texture' % (re8_name, shared))
 
         if 'Diffuse' not in produced:
-            ph = os.path.join(DDS_DIR, '%s_diff.dds' % safe)
-            rgb = PLACEHOLDER_RGB.get(local_name(re8_name))
-            source = 'explicit'
-            if rgb is None:
-                rgb = base_material_colour(re8_name, derived)
-                source = 'from base material'
-            if rgb is None:
-                rgb = DEFAULT_PLACEHOLDER
-                source = 'default'
-            write_placeholder(ph, rgb, alpha=alpha)
-            produced['Diffuse'] = ph
-            note = ''
-            if 'Smoothness' not in produced:
-                sm = base_material_smoothness(re8_name, mat_defs)
-                if sm is not None:
-                    sp = os.path.join(DDS_DIR, '%s_smooth.dds' % safe)
-                    write_smoothness_placeholder(sp, sm)
-                    produced['Smoothness'] = sp
-                    note = ' + smooth %.2f' % sm
-            print('  %-26s placeholder Diffuse %-16s (%s)%s'
-                  % (re8_name, str(rgb), source, note))
+            base = base_material_name(re8_name)
+            base_diff = (os.path.join(DDS_DIR, '%s_diff.dds'
+                                      % full_name(base).replace('.', '_'))
+                         if base else None)
+            if base_diff and os.path.exists(base_diff):
+                # reuse the base material's verified texture instead of a flat
+                # swatch: the game rejects tiny solid maps and falls back to
+                # its missing-texture magenta
+                produced['Diffuse'] = base_diff
+                if 'Smoothness' not in produced:
+                    sm = base_material_smoothness(re8_name, mat_defs)
+                    if sm is not None:
+                        sp = os.path.join(DDS_DIR, '%s_smooth.dds' % safe)
+                        write_smoothness_placeholder(sp, sm)
+                        produced['Smoothness'] = sp
+                print('  %-26s diffuse -> %s texture' % (re8_name, base))
+            else:
+                ph = os.path.join(DDS_DIR, '%s_diff.dds' % safe)
+                rgb = PLACEHOLDER_RGB.get(local_name(re8_name))
+                source = 'explicit'
+                if rgb is None:
+                    rgb = base_material_colour(re8_name, derived)
+                    source = 'from base material'
+                if rgb is None:
+                    rgb = DEFAULT_PLACEHOLDER
+                    source = 'default'
+                write_placeholder(ph, rgb, alpha=alpha)
+                produced['Diffuse'] = ph
+                note = ''
+                if 'Smoothness' not in produced:
+                    sm = base_material_smoothness(re8_name, mat_defs)
+                    if sm is not None:
+                        sp = os.path.join(DDS_DIR, '%s_smooth.dds' % safe)
+                        write_smoothness_placeholder(sp, sm)
+                        produced['Smoothness'] = sp
+                        note = ' + smooth %.2f' % sm
+                print('  %-26s placeholder Diffuse %-16s (%s)%s'
+                      % (re8_name, str(rgb), source, note))
 
         manifest[re8_name] = {
             'x4_name': x4_full,

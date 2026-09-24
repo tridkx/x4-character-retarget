@@ -204,7 +204,17 @@ around the torso** and **M = distance down the chain** (every chain hangs off
 `Spine_2`; `M=0` sits at z≈127, `M=3` at z≈100). The original rules keyed off N,
 binding the hem to the neck.
 
-### 7. `X4CharacterConverter` constraints
+### 7. A block-compression format is a format, not a preference
+
+`encode_bc3` concatenated the colour block before the alpha block.  DXT5 is
+defined as **[8 bytes alpha][8 bytes colour]**, so every BC3 texture decoded as
+"colour := alpha" (≈255, i.e. white) and "alpha := colour".  Only materials
+that carry alpha go through BC3, and among them only the dark ones make it
+obvious: the sling belt rendered as a bright pink chip in game.  Round-trip
+self-tests have to cover *every* format the encoder emits, not just the common
+ones.
+
+### 8. `X4CharacterConverter` constraints
 
 * Object names must match `[A-Za-z0-9_]+`; materials `[a-z0-9_]+\.[a-z0-9_]+`.
 * It only *rebuilds* meshes whose `mesh_id` already exists in the template, so
@@ -220,7 +230,7 @@ binding the hem to the neck.
 * Textures are looked up by **Blender node name** (`Diffuse`, `Normal`,
   `Smoothness`), not by material property.
 
-### 8. X4's geometry budget
+### 9. X4's geometry budget
 
 Vanilla NPC assets are ~5 k vertices *per asset*. A RE8 character arrives at
 340 k–359 k — roughly **73×** the budget, and unmodified that exhausts VRAM in

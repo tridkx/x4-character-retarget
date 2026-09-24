@@ -254,6 +254,15 @@ def encode_bc1(img, path):
 
 
 def encode_bc3(img, path):
+    """BC3 / DXT5.
+
+    A DXT5 block is **8 bytes of alpha followed by 8 bytes of colour** -- that
+    order is part of the format, not a choice.  This used to concatenate them
+    the other way round, which decodes as "colour := alpha" (usually ~255, so
+    the texture came out white) and "alpha := colour".  It showed up as the
+    sling belt rendering pale pink in game: the belt is one of the few dark
+    textures that goes through this path.
+    """
     rgba = img.convert('RGBA')
     arr = np.asarray(rgba)[..., :3]
     alpha = np.asarray(rgba)[..., 3]
@@ -261,7 +270,7 @@ def encode_bc3(img, path):
     ab, _ = _to_blocks(alpha[..., None])
     colour = _bc1_pack(cb, force_four=True)
     a = _bc4_pack(ab[..., 0])
-    out = np.concatenate([colour, a], axis=2)
+    out = np.concatenate([a, colour], axis=2)      # alpha block first
     write_dds(path, w, h, 'BC3', out.tobytes())
     return path
 
