@@ -122,25 +122,10 @@ COMPATIBILITY
   - Save safe: enable or disable at any time.
 
 
-WANT THEM TO COEXIST / WANT TO CHANGE IT
-
-  The whole pipeline and the reverse-engineering notes are open source (MIT):
-  https://github.com/tridkx/x4-character-retarget
-
-  The switch is at the top of tools/make_mod.py:
-
-      REPLACE_ALL_ARGON_FEMALE = False   # append mode, about 1 in 4
-
-  Set it to False, re-run that script, repack. The repository also has the full
-  build documentation and a running engineering log.
-
-
 REQUIREMENTS
 
-  - A legitimate copy of X4: Foundations. This mod contains only converted
-    assets, no game files.
-  - To rebuild it from scratch you additionally need X Tools, X4 Character
-    Converter, RE-Mesh-Editor and Blender.
+  A legitimate copy of X4: Foundations. This mod contains only converted assets,
+  no game files.
 
 
 CREDITS
@@ -157,6 +142,4 @@ LEGAL
   EGOSOFT. This is an unofficial fan work for personal use and contains no game
   assets from either title. The Rose Winters model and textures remain the
   property of CAPCOM.
-
-  The tooling is released under the MIT licence (see the GitHub repository).
 ```
