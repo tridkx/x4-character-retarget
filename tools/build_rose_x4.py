@@ -224,9 +224,12 @@ DECIMATE_RATIO = {
     'jacket': 0.35,
     'body': 0.30,
     'slingbelt': 0.70,
-    # hands keep the most geometry: fingers are thin and collapse badly
-    'hand_l': 0.75,
-    'hand_r': 0.75,
+    # hands are not decimated at all.  They are only 2346 vertices each, and
+    # collapsing them rewrites the finger UVs: the tangents follow the UVs, so
+    # the normal map comes out as rings around the fingers and dark blotches
+    # at the knuckles.  Keeping them intact costs ~4k vertices in total.
+    'hand_l': 1.0,
+    'hand_r': 1.0,
     'eyes': 0.50,
     'face': 0.50,
 }
@@ -518,7 +521,11 @@ def main():
             ratio = DECIMATE_RATIO.get(tag, 0.1)
             nv_before = len(me.vertices)
             nv_after, unw = decimate(ob, ratio)
-            smooth_vertex_weights(ob)
+            # no weight smoothing on the hands either -- with the fingers
+            # bound to the palm the weights there are already uniform, and
+            # perturbing the vertices only disturbs the normal map
+            if tag not in ('hand_l', 'hand_r'):
+                smooth_vertex_weights(ob)
             if unw < 0:
                 print("      %s: decimate would leave %d verts, keeping %d"
                       % (ob.name, nv_after, nv_before))

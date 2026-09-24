@@ -200,6 +200,10 @@ with about 2.3x the triangles of the previous 8.3x build.
 
 Two more things sit between the retarget and a usable asset:
 
+* **Hands are not decimated at all.**  Tangents follow UVs, so collapsing a
+  hand rewrites the finger UVs and the normal map renders as rings around the
+  fingers and dark blotches at the knuckles.  They are only 2346 vertices
+  each; keeping them intact costs ~4k and removes the artefact.
 * **Fingers bind to the palm.**  Rose authors her fingers together, the X4
   biped splays them, and the web between thumb and index is only skin bridging
   two fingers -- matching each finger to its own bone prises them apart until
