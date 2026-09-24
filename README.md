@@ -1,7 +1,8 @@
 # x4-character-retarget
 
 > **中文说明**: [`README.zh-CN.md`](README.zh-CN.md)
-> **Finished mod**: [Releases → `x4_rose_mod_v1.0.zip`](https://github.com/tridkx/x4-character-retarget/releases/download/v1.0/x4_rose_mod_v1.0.zip)
+> **Finished mod**: [Releases → `x4_rose_argon_add_v1.3.zip`](https://github.com/tridkx/x4-character-retarget/releases) (join the pools)
+> · [`x4_rose_argon_replace_v1.2.zip`](https://github.com/tridkx/x4-character-retarget/releases) (total conversion)
 
 Tooling and reverse-engineering notes for **retargeting a RE Engine character
 (Resident Evil Village) onto the X4: Foundations NPC skeleton**, so it can
@@ -13,14 +14,20 @@ binary assets stay out of git history and ship as a
 
 ## Installing the mod
 
-1. Download `x4_rose_mod_v1.0.zip` from [Releases](../../releases)
+There are **two shapes of the same mod**, and you pick one at download time:
+
+| File | Shape | What you get |
+|---|---|---|
+| `x4_rose_argon_add_v1.3.zip` | **`--mode add`** (the default, and the normal build) | Rose joins the Argon female appearance pools as **one more random candidate**. Every vanilla macro stays untouched, so the other women keep their own faces, names and voices. One in four of that job's spawns in a three-candidate pool; **one in seven** in the civilian pool (6 candidates). **Story and mission NPCs never pass through a pool, so they keep their vanilla appearance.** |
+| `x4_rose_argon_replace_v1.2.zip` | `--mode replace` (test build) | Every Argon-female appearance pool is rewritten to select Rose only, so every Argon woman you meet is Rose. Handy while testing a fresh retarget, wrong for anything else -- it also overrides any other Argon appearance replacer. |
+
+1. Download the zip you want from [Releases](../../releases)
 2. Unpack into `X4 Foundations/extensions/` so you get `extensions/x4_rose_mod/`
 3. Enable it in the game's *Extensions* menu
 
-This build is in **test mode**: every Argon-female appearance pool is replaced
-outright, so every Argon woman you meet is Rose. To run alongside other mods of
-the same kind, set `REPLACE_ALL_ARGON_FEMALE = False` in `tools/make_mod.py`
-and rebuild (append mode, ~1 in N).
+Both are built from one source tree and differ only in which XML diff
+`make_mod.py` writes (`charactergroups.xml` gains an `<add>` or a `<replace>`),
+so you can switch by swapping the zip -- do not install both at once.
 
 Requires a legitimate copy of X4: Foundations (developed against 9.00). The
 release contains only converted assets, no game files.
@@ -306,8 +313,8 @@ changes, so the exported asset still rides the shared vanilla skeleton.
 | `build_rose_x4.py` | stage 1: extract, retarget, decimate, build `.blend` |
 | `build_mod.py` | stage 2: fill host mesh slots, export `.xac` |
 | `prepare_textures.py`, `x4_materials.py` | texture batch + material manifest |
-| `make_mod.py` | assemble the mod tree and XML, ready for `XRCatTool` |
-| `verify_mod.py` | pre-flight check: XML, diff XPaths, pool coverage, assets, skeleton |
+| `make_mod.py` | assemble the mod tree and XML, ready for `XRCatTool`; `--race` / `--mode` pick the target and the shape |
+| `verify_mod.py` | pre-flight check: XML, diff XPaths, pool coverage (per mode), assets, skeleton |
 | `check_normals.py` | per-mesh outward-facing ratio — catches flipped triangle winding |
 | `dump_asset.py` | export a `.xac`'s bones + skinned meshes to `.npz` for analysis |
 | `preview_skeleton.py` | bone wireframe over the mesh (most trustworthy single check) |
@@ -348,12 +355,13 @@ python tools/prepare_textures.py
 # 4. stage 2 — export the .xac pair
 blender -b --factory-startup --python tools/build_mod.py
 
-# 5. assemble and pack  (note: -out must end in .cat)
-python tools/make_mod.py
-XRCatTool.exe -in x4_rose_mod -out x4_rose_mod/ext_01.cat
+# 5. assemble and pack  (add is the default shape; -out must end in .cat)
+python tools/make_mod.py --race argon --mode add        # -> work/x4_rose_argon_add
+python tools/make_mod.py --race argon --mode replace    # -> work/x4_rose_argon_replace
+XRCatTool.exe -in work/x4_rose_argon_add -out work/x4_rose_argon_add/ext_01.cat
 
 # 6. verify before shipping: XML, pool coverage, assets, skeleton compatibility
-python tools/verify_mod.py
+python tools/verify_mod.py --race argon --mode add
 blender -b --factory-startup --python tools/check_normals.py -- <rose_body.xac> <rose_head.xac>
 blender -b --factory-startup --python tools/preview_pose_test.py -- <rose.xac> new
 ```
@@ -361,36 +369,56 @@ blender -b --factory-startup --python tools/preview_pose_test.py -- <rose.xac> n
 Paths are currently absolute and point at the author's machine — see
 `WORK`, `ADDON_DIR`, `RE8_MODELS` at the top of each script.
 
-### Test mode: every Argon woman is Rose
+### Two shapes: `--mode add` (default) and `--mode replace`
 
-While testing you do not want to hunt for the one NPC in four that rolled
-Rose. `make_mod.py` has a switch:
+`tools/make_mod.py` takes the target race and the shape on the command line:
 
-```python
-REPLACE_ALL_ARGON_FEMALE = True    # False = append her as one random option
+```bash
+python tools/make_mod.py --race <argon|terran> --mode <add|replace>
 ```
 
-With it on, every Argon-female appearance pool is **replaced** (not appended
-to), using pools auto-discovered from the vanilla `charactergroups.xml` rather
-than a hardcoded list — that catches the faction-specific pools
-(`antigone.*`, `hatikvah.*`) a fixed list misses:
+**`--mode add` (the default).** One new macro
+(`character_argon_female_rose_macro`) is appended with `<add sel="/macros">`,
+`ref`ing the race's cau base macro so it inherits `identification`,
+`eyepositions` and `facemods`; one `<select macro=...>` is then appended to each
+Argon-female appearance pool. **No vanilla macro is modified and no pool entry
+is removed**, so she is one candidate among the originals -- ~1/4 in a pool of
+three, 1/7 in the civilian pool, which holds six. The pools are auto-discovered
+from the vanilla `charactergroups.xml` (a pool qualifies when its name is
+`argon.*` + `.female` and it lists macros directly, so router pools such as
+`argon.trader.female` -> `argon.civilian.female` need no entry of their own):
 
 ```
-argon.allraces                   96 entries (mixed pool, replaced too)
-argon.factiondiplomat.female      1
-antigone.factiondiplomat.female   1
-hatikvah.factiondiplomat.female   1
-argon.service.female              3
-argon.marine.female               3
-argon.civilian.female             6
-argon.pilot.female                3
+argon.civilian.female             6 vanilla entries kept
 argon.commander.female            3
+argon.marine.female               3
+argon.pilot.female                3
+argon.service.female              3
+argon.factiondiplomat.female      1
 ```
 
-Mixed developer pools (`benchmark`, `testcharacter`) are deliberately left
-alone. `verify_mod.py` replays the diffs against the vanilla library and
-asserts each pool resolves to Rose and nothing else.
+`--weight N` (emit her `<select>` N times per pool, so 2 gives her 2 of 5) exists
+in the sibling Lumine project's `make_mod.py`; this project has no such flag and
+always emits one line per pool. Mixed developer pools (`benchmark`,
+`testcharacter`) are deliberately left alone, and so are the faction-specific
+pools (`antigone.*`, `hatikvah.*`): they only *route* to these leaf pools.
 
+**`--mode replace` (the older total-conversion shape).** The same six leaf pools
+are rewritten with `<replace>`, so the pool has no vanilla fallback and every
+Argon woman -- story and plot NPCs included -- is Rose. That is what you want
+while testing a fresh retarget, and the wrong default for anything else.
+
+Each shape writes its own tree (`work/x4_rose_<race>_<mode>`) because they must
+not overwrite each other; the release ships them side by side.
+`verify_mod.py` is parameterised the same way and asserts the matching
+invariant: in `add` mode every target pool must **gain** Rose *and keep every
+vanilla entry it had* (a stray `<replace>` would silently turn "one more
+option" back into "only option", which no screenshot would reveal unless you
+happened to be looking at a story NPC); in `replace` mode the patch set must be
+complete and no pool may still be able to select a vanilla macro.
+
+> `--race terran` exists in the table and needs no new mesh (Terran women share
+> `character_argon_female_01`), but no Terran build has been produced for Rose.
 
 ## Repo layout
 

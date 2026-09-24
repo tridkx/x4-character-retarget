@@ -1,18 +1,29 @@
 [b][size=5]Rose Winters (RE8) - Argon Female NPC Replacer[/size][/b]
 
-把《生化危机8：萝丝之影》的成年萝丝替换成《X4：基石》里的 Argon 女性 NPC 外观。
+把《生化危机8：萝丝之影》的成年萝丝做成《X4：基石》里的 Argon 女性 NPC 外观。
 
 采用 X4 标准的「换网格、留骨架」方式：使用原版共享骨架与全套共享动画，
 不修改任何游戏原始文件。
 
-[b]版本[/b]：1.1　　[b]游戏版本[/b]：X4: Foundations 9.00
+[b]本 mod 有两种形态，两个下载文件，文件名即配置 —— 二选一，不要都装[/b]：
+
+[list]
+[*][b]x4_rose_argon_add_v1.3.zip[/b] —— [b]加入外观池[/b]（正常游玩用这个）：萝丝成为
+Argon 女性外观池里的[b]一个随机候选[/b]，约占该职业女性的 1/4（平民池 6 个候选，约占 1/7）。
+原版模型一个都没动，其余女性保持自己的脸、名字与语音。
+[b]剧情/任务 NPC 不经过外观池，因此保持原版外观。[/b]
+[*][b]x4_rose_argon_replace_v1.2.zip[/b] —— [b]全部替换[/b]（测试 / 想满地图都是萝丝时用）：
+所有 Argon 女性（含剧情/任务 NPC）都是萝丝；它会覆盖其它 Argon 外观替换 mod。
+[/list]
+
+[b]版本[/b]：add 1.3 / replace 1.2　　[b]游戏版本[/b]：X4: Foundations 9.00
 
 [line]
 
 [b][size=4]功能[/size][/b]
 
 [list]
-[*]用萝丝·温特斯的模型、贴图与材质替换 Argon 女性 NPC 外观
+[*]用萝丝·温特斯的模型、贴图与材质做 Argon 女性 NPC 外观
 [*]沿用原版骨架与共享动画，动作、注视、手持挂点全部正常
 [*]不修改任何游戏文件，可随时启用/停用，存档安全
 [*]已去除眼透镜壳等只靠着色器出效果的覆盖层，露出正常的眼球
@@ -23,7 +34,7 @@
 [b][size=4]安装[/size][/b]
 
 [list=1]
-[*]下载 [b]x4_rose_mod_v1.1.zip[/b]
+[*]下载你需要的那个文件：[b]x4_rose_argon_add_v1.3.zip[/b] 或 [b]x4_rose_argon_replace_v1.2.zip[/b]
 [*]解压到游戏根目录下的 [font=Courier New]extensions\[/font] 文件夹，得到：
 [code]X4 Foundations\extensions\x4_rose_mod\
     content.xml
@@ -36,6 +47,8 @@
 [b]提示[/b]：NPC 外观在生成时决定，已在场景里的 NPC 不会立刻变化。
 移动到有 Argon 女性的区域（空间站、舰队）或重新招募即可。
 
+[b]提示[/b]：两个包写的文件名相同，换形态是[b]替换文件夹内容[/b]，不是叠加安装。
+
 [line]
 
 [b][size=4]卸载[/size][/b]
@@ -45,13 +58,24 @@
 
 [line]
 
-[b][size=4]请注意：本版是「全替换」模式[/size][/b]
+[b][size=4]「加入外观池」版是怎么做的[/size][/b]
 
-为了让测试时不用反复刷 NPC，本版把 [b]所有 Argon 女性外观池整池替换[/b]：
-你遇到的每一个 Argon 女性都会是萝丝，而不是原来的随机约 1/4。
+新增一条 macro（继承原版 base macro，种族/性别标记、眼球位置、捏脸系统照常生效），
+并往 [b]6 个[/b] Argon 女性外观池各追加一条选择：
 
-[b]副作用[/b]：如果你同时装了其它替换 Argon 外观的 mod，它们在同一批外观池里的
-条目会被本 mod 覆盖。请单独启用本 mod。
+[code]argon.civilian.female             6 个原版候选保留
+argon.commander.female            3
+argon.marine.female               3
+argon.pilot.female                3
+argon.service.female              3
+argon.factiondiplomat.female      1[/code]
+
+[b]没有一个原版 macro 被改动，没有一条池内原有条目被删[/b] —— 所以萝丝只是随机
+出现的其中一个，而不是唯一选项。池的清单直接从游戏文件里读出来，DLC 新增的池也会
+被带进来；只做路由的派系池（如 Antigone / Hatikvah 外交官池）不需要单独写。
+
+[b]「全部替换」版[/b]则是把这 6 个池整节点换掉（池里没有原版 fallback），
+所以每个 Argon 女性都是萝丝，包括不走外观池的剧情/任务 NPC。
 
 [line]
 
@@ -97,7 +121,9 @@ X4 的捏脸系统（facemods）与语音口型对本 mod 无效，萝丝为固�
 [list]
 [*]需要 [b]X4: Foundations 9.00[/b] 或更高版本。
 [*]不修改任何游戏原文件，可与绝大多数 mod 共存。
-[*]与其它 Argon 外观替换 mod 冲突：[b]本版会覆盖它们的条目[/b]（见上方提示）。
+[*][b]「加入外观池」版[/b]与其它 Argon 外观替换 mod [b]可以共存[/b]：它只是往同一批
+    池里追加一个候选，装得越多，各自分到的出现率越低。
+[*][b]「全部替换」版[/b]会覆盖其它 Argon 外观替换 mod 的条目，请单独启用。
 [*]存档安全：可随时启用或停用。
 [/list]
 

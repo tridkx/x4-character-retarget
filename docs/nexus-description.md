@@ -3,7 +3,14 @@
 **Mod name**: `Rose Winters (RE8) - Argon Female NPC Replacer`
 
 **Summary / tagline** (one line for the mod card):
-`Resident Evil Village's Rose Winters replaces the Argon female NPC models in X4: Foundations.`
+`Resident Evil Village's Rose Winters joins (or replaces) the Argon female NPC models in X4: Foundations.`
+
+**Two files, two shapes** -- the mod ships in both, and the file name says which
+is which:
+* `x4_rose_argon_add_v1.3.zip` -- **add** (the normal build): Rose is one more
+  random candidate in the Argon female appearance pools.
+* `x4_rose_argon_replace_v1.2.zip` -- **replace** (test build): every Argon
+  woman becomes Rose, story and mission NPCs included.
 
 ---
 
@@ -12,14 +19,34 @@
 ```
 Rose Winters (RE8) - Argon Female NPC Replacer
 
-Replaces the Argon female NPC models in X4: Foundations with Rose Winters from
-Resident Evil Village (Shadows of Rose). Built the standard X4 way -- swap the
-meshes, keep the skeleton -- so it rides the vanilla shared rig and the full
+Brings Rose Winters from Resident Evil Village (Shadows of Rose) into
+X4: Foundations as an Argon female NPC model. Built the standard X4 way -- swap
+the meshes, keep the skeleton -- so it rides the vanilla shared rig and the full
 shared animation set and modifies no game files.
+
+There are two downloads of the same mod. Pick one; do not install both.
+
+
+WHICH FILE DO I WANT?
+
+  x4_rose_argon_add_v1.3.zip   <- normal play, start here
+    Rose JOINS the Argon female appearance pools as one more random candidate.
+    Every vanilla model is left in place, so the other Argon women keep their
+    own faces, names and voices. She is about one in four of the women that job
+    spawns (one in seven in the civilian pool, which has six candidates).
+    Story and mission NPCs never come from an appearance pool, so they keep
+    their vanilla appearance.
+
+  x4_rose_argon_replace_v1.2.zip
+    Rose REPLACES the Argon female appearance pools outright: every Argon woman
+    you meet is Rose. This is the build for inspecting the model everywhere at
+    once (and it is the one that makes story NPCs Rose too). It overrides any
+    other Argon appearance replacer you may have installed.
 
 
 VERSION
-  1.1
+  add     1.3
+  replace 1.2
 
 GAME VERSION
   X4: Foundations 9.00 (built and tested on 9.00)
@@ -27,7 +54,7 @@ GAME VERSION
 
 INSTALLATION
 
-  1. Download x4_rose_mod_v1.1.zip
+  1. Download the zip you want.
 
   2. Unpack it into the game's extensions folder, so you end up with:
 
@@ -46,6 +73,9 @@ INSTALLATION
   standing in front of you will not change. Move to an area with Argon women
   (stations, your fleet) or hire new crew.
 
+  The two builds write the same file names, so switching between them means
+  replacing the folder contents -- not merging them.
+
 
 UNINSTALLATION
 
@@ -53,15 +83,24 @@ UNINSTALLATION
   menu. Nothing in the game is modified, so saves stay valid either way.
 
 
-!! THIS BUILD REPLACES ALL ARGON FEMALE APPEARANCE POOLS !!
+HOW THE "ADD" BUILD WORKS
 
-  So you do not have to hunt for the NPC that rolled Rose, this build replaces
-  every Argon female appearance pool outright: every Argon woman you meet is
-  Rose, instead of roughly one in four.
+  One new NPC macro is appended (it inherits the vanilla base macro, so her
+  race/gender identification, eye positions and face-shaping all still run),
+  and one line is added to each of the six Argon female appearance pools:
 
-  Side effect: if you also run another mod that replaces Argon appearances
-  (a 2B replacer, for example), its entries in those same pools get replaced by
-  this one.  Run this mod on its own.
+    civilian, commander, marine, pilot, service, factiondiplomat
+
+  Not a single vanilla macro and not a single existing pool entry is removed.
+  The pools are read from the game itself, so a pool added by a DLC would be
+  picked up rather than missed. Faction pools that merely route to these (for
+  example the Antigone and Hatikvah diplomat pools) need no entry of their own.
+
+  A stray "replace" where an "add" belongs is exactly the mistake this build has
+  to avoid: it would quietly turn "one more option" back into "the only option",
+  and no screenshot would ever show it unless you happened to be looking at a
+  story NPC. The project's pre-flight check asserts the difference for both
+  builds, so the two cannot drift into each other.
 
 
 KNOWN ISSUES AND LIMITATIONS
@@ -116,8 +155,11 @@ COMPATIBILITY
 
   - Requires X4: Foundations 9.00 or newer.
   - Modifies no game files; coexists with most mods.
-  - Conflicts with other Argon appearance replacers: this build overrides their
-    entries (see the warning above).
+  - The ADD build sits alongside other Argon appearance replacers: it only
+    appends a candidate to those pools, so you and they share them -- the more
+    replacers you stack, the lower each one's share of the spawns.
+  - The REPLACE build overrides other Argon appearance replacers (see above):
+    run it on its own.
   - Save safe: enable or disable at any time.
 
 

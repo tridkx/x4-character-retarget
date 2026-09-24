@@ -1,19 +1,27 @@
 # -*- coding: utf-8 -*-
 """Pre-flight check for the assembled mod, without launching the game.
 
-    python tools/verify_mod.py
+    python tools/verify_mod.py --race argon --mode add
+    python tools/verify_mod.py --race argon --mode replace
 
 Checks, in order:
   1. every XML we ship is well formed;
   2. every `sel=` XPath in our diffs actually matches a node in the vanilla
      library (a typo there is silently ignored by the game);
-  3. after applying our diffs, the appearance pools really do resolve to Rose
-     and nothing else (this is what makes "replace all" trustworthy);
+  3. the appearance pools do what the mode promises:
+     * `add`     -- every target pool gains Rose **and keeps every vanilla
+                    entry it had**.  A stray `<replace>` here would silently
+                    turn "one more option" back into "only option", which no
+                    screenshot would reveal unless you happened to be looking
+                    at a story NPC;
+     * `replace` -- every target pool resolves to Rose and nothing else (this
+                    is what makes "replace all" trustworthy);
   4. the macros/components/textures the macro references exist;
   5. both .xac files carry the vanilla skeleton byte-for-byte.
 
 Exit code is non-zero when something is wrong, so it can gate a build.
 """
+import argparse
 import os
 import re
 import sys
@@ -21,10 +29,12 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-WORK = r"D:\dsh-x4\work"
-MOD = os.path.join(WORK, 'x4_rose_mod')
+import make_mod as MK                                    # noqa: E402
+
+WORK = MK.WORK
+MOD = None                      # set by main()
 VANILLA = os.path.join(WORK, 'vanilla', 'libraries')
-MACRO_NAME = 'character_argon_female_rose_macro'
+MACRO_NAME = None               # set by main()
 
 FAIL = []
 
@@ -90,6 +100,9 @@ def check_xml(path, label):
 
 # ---------------------------------------------------------------- the checks
 def check_charactergroups():
+    if MK.MODE == 'add':
+        check_charactergroups_add()
+        return
     mod_path = os.path.join(MOD, 'libraries', 'charactergroups.xml')
     van_path = os.path.join(VANILLA, 'charactergroups.xml')
     root = check_xml(mod_path, 'charactergroups.xml')
@@ -137,6 +150,63 @@ def check_charactergroups():
         print('  -> %d appearance pool(s) fully replaced' % replaced)
 
 
+def check_charactergroups_add():
+    """Rose must be an *addition*: new entry in, vanilla entries untouched."""
+    mod_path = os.path.join(MOD, 'libraries', 'charactergroups.xml')
+    van_path = os.path.join(VANILLA, 'charactergroups.xml')
+    root = check_xml(mod_path, 'charactergroups.xml')
+    if root is None:
+        return
+    if not os.path.exists(van_path):
+        warn('vanilla charactergroups.xml not extracted, skipping pool checks')
+        return
+    van = load(van_path)
+
+    added, bad_pools = 0, 0
+    for node in root:
+        sel = node.get('sel')
+        if not sel:
+            bad('<%s> without sel=' % node.tag)
+            continue
+        targets = match_sel(van, sel)
+        if node.tag == 'replace':
+            bad('pool diff uses <replace sel=%s> -- that is replace-mode '
+                'content in an add-mode tree' % sel)
+            continue
+        if node.tag != 'add':
+            warn('unhandled diff element <%s>' % node.tag)
+            continue
+        if len(targets) != 1:
+            bad('add sel=%s matched %d nodes' % (sel, len(targets)))
+            continue
+        pool = targets[0]
+        vanilla_macros = [e.get('macro') for e in pool if e.tag == 'select'
+                          and e.get('macro')]
+        ours = [e.get('macro') for e in node if e.tag == 'select']
+        if ours != [MACRO_NAME]:
+            bad('add sel=%s carries %s, expected [%s]' % (sel, ours, MACRO_NAME))
+            bad_pools += 1
+            continue
+        if not vanilla_macros:
+            bad('pool %s has no vanilla macros left' % pool.get('name'))
+            bad_pools += 1
+            continue
+        added += 1
+        ok('pool %-30s +Rose, %d vanilla entries kept'
+           % (pool.get('name'), len(vanilla_macros)))
+    print('  -> %d pool(s) gained Rose as one more option' % added)
+    if bad_pools:
+        bad('%d pool(s) are not a pure addition' % bad_pools)
+    # the macro she is added as must be new, not a shadow of a vanilla macro
+    van_macros = os.path.join(VANILLA, 'character_macros.xml')
+    if os.path.exists(van_macros):
+        if match_sel(load(van_macros), "/macros/macro[@name='%s']" % MACRO_NAME):
+            bad('%s already exists in vanilla -- <add> would duplicate a name'
+                % MACRO_NAME)
+        else:
+            ok('%s is a new macro name (nothing shadowed)' % MACRO_NAME)
+
+
 def check_macros():
     root = check_xml(os.path.join(MOD, 'libraries', 'character_macros.xml'),
                      'character_macros.xml')
@@ -168,7 +238,7 @@ def check_macros():
             ref = model.get('ref')
             if not ref or ref == 'none':
                 continue
-            rel = ref.split('extensions/%s/' % os.path.basename(MOD))[-1]
+            rel = ref.split('extensions/%s/' % MK.MOD_ID)[-1]
             p = os.path.join(MOD, rel.replace('/', os.sep) + '.xac')
             if os.path.exists(p):
                 ok('model %-6s -> %s' % (model.get('type'), rel + '.xac'))
@@ -186,9 +256,10 @@ def check_assets():
             'char_arg_f_dyn_blend_head.xac'),
     }
     import xac
+    race = MK.RACE['base_macro'].split('_')[1]
     for fn, van_path in van.items():
         sub = 'bodies' if 'body' in fn else 'heads'
-        p = os.path.join(MOD, 'assets', 'characters', 'argon', 'rose', sub, fn)
+        p = os.path.join(MOD, 'assets', 'characters', race, 'rose', sub, fn)
         if not os.path.exists(p):
             bad('%s missing' % p)
             continue
@@ -203,7 +274,7 @@ def check_assets():
             bad('%s skeleton differs from vanilla (%d/%d payloads identical)'
                 % (fn, r['blocks_identical'], r['blocks_compared']))
 
-    tex_dir = os.path.join(MOD, 'assets', 'characters', 'argon', 'rose',
+    tex_dir = os.path.join(MOD, 'assets', 'characters', race, 'rose',
                            'textures')
     n_tex = len(os.listdir(tex_dir)) if os.path.isdir(tex_dir) else 0
     if n_tex:
@@ -230,7 +301,20 @@ def check_assets():
 
 
 def main():
-    print('verifying %s' % MOD)
+    global MOD, MACRO_NAME
+    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('--race', choices=sorted(MK.RACES), default='argon')
+    ap.add_argument('--mode', choices=('add', 'replace'), default='add')
+    ap.add_argument('--dir', default=None,
+                    help='mod tree to check (default: the one make_mod.py '
+                         'builds for these flags)')
+    args = ap.parse_args()
+
+    MK.configure(args.race, args.mode)
+    MOD = os.path.abspath(args.dir) if args.dir else MK.MOD
+    MACRO_NAME = MK.MACRO_NAME
+
+    print('verifying %s  [%s / %s]' % (MOD, args.race, args.mode))
     if not os.path.isdir(MOD):
         print('mod directory does not exist -- run tools/make_mod.py first')
         return 1

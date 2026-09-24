@@ -1,7 +1,8 @@
 # x4-character-retarget
 
 > **English**: [`README.md`](README.md)
-> **成品 mod 下载**：[Releases → x4_rose_mod_v1.0.zip](https://github.com/tridkx/x4-character-retarget/releases/download/v1.0/x4_rose_mod_v1.0.zip)
+> **成品 mod 下载**：[Releases → x4_rose_argon_add_v1.3.zip](https://github.com/tridkx/x4-character-retarget/releases)（加入外观池）
+> · [x4_rose_argon_replace_v1.2.zip](https://github.com/tridkx/x4-character-retarget/releases)（全部替换）
 
 把 **RE Engine 角色（《生化危机8：萝丝之影》的成年萝丝）重定向到《X4：基石》的
 NPC 骨架**上的工具与逆向工程笔记，让她作为 Argon 女性 NPC 出现在游戏里。
@@ -25,14 +26,20 @@ NPC 骨架**上的工具与逆向工程笔记，让她作为 Argon 女性 NPC �
 
 ## 下载与安装成品 mod
 
-1. 到 [Releases](../../releases) 下载 `x4_rose_mod_v1.0.zip`
+**同一个 mod 有两种形态，下载时二选一**：
+
+| 文件 | 形态 | 你会得到什么 |
+|---|---|---|
+| `x4_rose_argon_add_v1.3.zip` | **`--mode add`**（默认，正式版） | 萝丝**加入** Argon 女性外观池，是**随机出现的其中一个**。原版 macro 一个都不动，其余女性保持自己的脸/名字/语音。3 候选的池里约占 **1/4**，6 候选的平民池里约占 **1/7**。**剧情/任务 NPC 不经过外观池，保持原版外观。** |
+| `x4_rose_argon_replace_v1.2.zip` | `--mode replace`（测试版） | 6 个 Argon 女性外观池**整池替换**成只选萝丝，遇到的每个 Argon 女性都是萝丝（含剧情 NPC）。调试新模型时好用，其它场合都不该用 —— 它也会覆盖其它 Argon 外观替换 mod 的条目。 |
+
+1. 到 [Releases](../../releases) 下载你需要的那个 zip
 2. 解压到 `X4 Foundations/extensions/`，得到 `extensions/x4_rose_mod/`
 3. 启动游戏 → 「扩展」菜单 → 启用
 4. 游戏内招募 Argon 女性船员即可看到
 
-**本版是测试模式**：所有 Argon 女性外观池被**整池替换**，遇到的 Argon 女性都是萝丝。
-想与其它同类 mod 共存，把 `tools/make_mod.py` 里的 `REPLACE_ALL_ARGON_FEMALE`
-改成 `False` 重新构建（追加模式，约 1/N 概率）。
+两个包由同一份源码生成，差别只在 `make_mod.py` 写出的 `charactergroups.xml`
+里是 `<add>` 还是 `<replace>`，所以换包即可切换 —— **不要两个同时装**。
 
 > ⚠️ 需要正版《X4：基石》（开发于 9.00）。Release 包里只有**转换产物**，
 > 不含任何游戏本体文件。
@@ -91,12 +98,43 @@ python tools/xcat.py                                     # 先改文件顶部的
 blender -b --factory-startup --python tools/build_rose_x4.py    # 阶段1：重定向
 python tools/prepare_textures.py                         # 贴图（需系统 Python + Pillow）
 blender -b --factory-startup --python tools/build_mod.py        # 阶段2：导出 .xac
-python tools/make_mod.py                                 # 组装 mod 树
-python tools/verify_mod.py                               # 发版前自检
-XRCatTool.exe -in x4_rose_mod -out x4_rose_mod/ext_01.cat
+python tools/make_mod.py --race argon --mode add         # 组装 mod 树（默认 add）
+python tools/make_mod.py --race argon --mode replace     # 或者：全部替换版
+python tools/verify_mod.py --race argon --mode add       # 发版前自检（模式要跟产物一致）
+XRCatTool.exe -in work/x4_rose_argon_add -out work/x4_rose_argon_add/ext_01.cat
 ```
 
 脚本里的路径（`WORK` / `ADDON_DIR` / `RE8_MODELS`）写死在作者机器上，需要自己改。
+
+**两种形态（`--mode`）**
+
+- `--mode add`（**默认**）：新增一条 macro（`<add sel="/macros">`，`ref` 该种族的
+  cau base macro，继承 identification/eyepositions/facemods），并往每个 Argon
+  女性外观池追加一条 `<select>`。**原版 macro 一个不动、池里原有条目一条不删**，
+  所以她只是"随机出现的其中一个"，且**剧情/任务 NPC 不走外观池，保持原版**。
+- `--mode replace`：把这 6 个池整节点 `<replace>` 掉，池里没有原版 fallback，
+  所以每个 Argon 女性（含剧情 NPC）都是萝丝。
+
+覆盖的 6 个池（两种模式同一批叶子池，自动从原版 `charactergroups.xml` 发现；
+`antigone.*` / `hatikvah.*` 这类只是路由到这些叶子池，不需要单独写）：
+
+```
+argon.civilian.female             6 个原版候选
+argon.commander.female            3
+argon.marine.female               3
+argon.pilot.female                3
+argon.service.female              3
+argon.factiondiplomat.female      1
+```
+
+输出目录按形态分开（两者不能互相覆盖）：`work/x4_rose_argon_add` /
+`work/x4_rose_argon_replace`。`verify_mod.py` 也带同样的 `--race` / `--mode`，
+并按模式断言：add 模式要求每个池**既多了萝丝、又一条原版都没少**（残留
+`<replace>` 会把"多一个选项"悄悄变回"唯一选项"，不盯着剧情 NPC 根本看不出来）；
+replace 模式要求补丁集完整、没有池还能选到原版。
+
+> 配方表里还有 `--race terran`（Terran 女性与 Argon 女性共用同一个 component，
+> 网格完全一样），但萝丝**没有做 Terran 产物**。
 
 **换角色/换来源游戏时，所有具体数字都要重新量**；方法与坑位可以照搬，
 见配套 skill：[`x4-npc-replacement-mod`](https://github.com/tridkx/dsh-skill-x4-npc-replacement-mod)。
