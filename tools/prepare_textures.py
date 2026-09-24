@@ -313,44 +313,33 @@ def main():
                 print('  %-26s diffuse -> %s texture' % (re8_name, shared))
 
         if 'Diffuse' not in produced:
-            base = base_material_name(re8_name)
-            base_diff = (os.path.join(DDS_DIR, '%s_diff.dds'
-                                      % full_name(base).replace('.', '_'))
-                         if base else None)
-            if base_diff and os.path.exists(base_diff):
-                # reuse the base material's verified texture instead of a flat
-                # swatch: the game rejects tiny solid maps and falls back to
-                # its missing-texture magenta
-                produced['Diffuse'] = base_diff
-                if 'Smoothness' not in produced:
-                    sm = base_material_smoothness(re8_name, mat_defs)
-                    if sm is not None:
-                        sp = os.path.join(DDS_DIR, '%s_smooth.dds' % safe)
-                        write_smoothness_placeholder(sp, sm)
-                        produced['Smoothness'] = sp
-                print('  %-26s diffuse -> %s texture' % (re8_name, base))
-            else:
-                ph = os.path.join(DDS_DIR, '%s_diff.dds' % safe)
-                rgb = PLACEHOLDER_RGB.get(local_name(re8_name))
-                source = 'explicit'
-                if rgb is None:
-                    rgb = base_material_colour(re8_name, derived)
-                    source = 'from base material'
-                if rgb is None:
-                    rgb = DEFAULT_PLACEHOLDER
-                    source = 'default'
-                write_placeholder(ph, rgb, alpha=alpha)
-                produced['Diffuse'] = ph
-                note = ''
-                if 'Smoothness' not in produced:
-                    sm = base_material_smoothness(re8_name, mat_defs)
-                    if sm is not None:
-                        sp = os.path.join(DDS_DIR, '%s_smooth.dds' % safe)
-                        write_smoothness_placeholder(sp, sm)
-                        produced['Smoothness'] = sp
-                        note = ' + smooth %.2f' % sm
-                print('  %-26s placeholder Diffuse %-16s (%s)%s'
-                      % (re8_name, str(rgb), source, note))
+            ph = os.path.join(DDS_DIR, '%s_diff.dds' % safe)
+            rgb = PLACEHOLDER_RGB.get(local_name(re8_name))
+            source = 'explicit'
+            if rgb is None:
+                rgb = base_material_colour(re8_name, derived)
+                source = 'from base material'
+            if rgb is None:
+                rgb = DEFAULT_PLACEHOLDER
+                source = 'default'
+            # Flat colour, but at the same size and format as a real texture.
+            # Two failures bracket this: a 16x16 solid was *rejected* by the
+            # game (rendered as its missing-texture magenta), while reusing the
+            # base material's map is wrong for these parts because their UVs
+            # are tiled far outside 0..1 -- every clamped sample lands on the
+            # atlas padding and the trim turns black.
+            write_placeholder(ph, rgb, alpha=alpha, size=MAX_SIZE)
+            produced['Diffuse'] = ph
+            note = ''
+            if 'Smoothness' not in produced:
+                sm = base_material_smoothness(re8_name, mat_defs)
+                if sm is not None:
+                    sp = os.path.join(DDS_DIR, '%s_smooth.dds' % safe)
+                    write_smoothness_placeholder(sp, sm, size=MAX_SIZE)
+                    produced['Smoothness'] = sp
+                    note = ' + smooth %.2f' % sm
+            print('  %-26s flat Diffuse %-16s (%s, %dpx)%s'
+                  % (re8_name, str(rgb), source, MAX_SIZE, note))
 
         manifest[re8_name] = {
             'x4_name': x4_full,
