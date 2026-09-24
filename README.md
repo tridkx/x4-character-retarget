@@ -200,6 +200,11 @@ with about 2.3x the triangles of the previous 8.3x build.
 
 Two more things sit between the retarget and a usable asset:
 
+* **Fingers bind to the palm.**  Rose authors her fingers together, the X4
+  biped splays them, and the web between thumb and index is only skin bridging
+  two fingers -- matching each finger to its own bone prises them apart until
+  it looks like a piece is missing.  Binding them to the palm keeps the hand
+  as authored; individual fingers no longer animate, which an NPC never shows.
 * **Soles.** X4's toe bones are almost on the ground (Toe0 z = 0.12 against a
   11.55 ankle) while Rose's are 6 cm above it, so binding toe geometry to them
   buries the shoes ~3.5 cm. `lift_feet()` raises the foot-weighted vertices

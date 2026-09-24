@@ -82,12 +82,16 @@ NO_ROTATE_BONES = {'Bip01 L Foot', 'Bip01 R Foot', 'Bip01 L Toe0', 'Bip01 R Toe0
 #: leaves the fingers 5.8 cm off their bones, so bending animation would fling
 #: them.  Half way keeps the web intact and the fingers close enough to their
 #: bones to still bend sensibly.
-#: 1.0 = every finger hits its own target (shape faithful, web pinched);
-#: 0.0 = rigid with the palm (web fine, fingers 5.8 cm off their bones).
-#: Anything in between moves each finger differently and *distorts* them --
-#: worse than either end.  The web pinch is handled by smoothing the weights
-#: instead (build_rose_x4.smooth_vertex_weights), so keep this at 1.0.
-FINGER_OWN_OFFSET = 1.0
+#: Fingers bind to the palm, not to the finger bones.
+#:
+#: Rose authors her fingers *together*; the X4 biped splays them.  Matching
+#: each finger to its own bone prises them apart, and the web between thumb
+#: and index -- which has no geometry of its own, only the skin bridging the
+#: two -- tears open until it looks like a piece is missing.  Blending half
+#: way moves all five differently and distorts them worse.  Binding them to
+#: the palm keeps the authored hand; the cost is that individual fingers no
+#: longer animate, which hardly shows on an NPC.
+FINGERS_BIND_TO_PALM = True
 
 
 def rose_to_blender(p_m):
@@ -309,35 +313,11 @@ class BindPoseRetarget:
         # head transform rather than the raw one
         self._harmonise_head_neck()
         self._bind_eyes_to_head()
-        self._fingers_ride_the_palm()
         self._feet_share_one_offset()
         if self.verbose:
             print('  bind transfer: %d direct bones, %d target bones, '
                   '%d without a bone axis' % (len(self.direct), len(self.delta),
                                               self.n_axis_fallback))
-
-    def _fingers_ride_the_palm(self):
-        """Translate the finger chains with the palm instead of individually.
-
-        Matching each finger bone to its own X4 target moves neighbouring
-        fingers by up to 6 cm in different directions, and the vertices that
-        blend between them -- the web between thumb and index -- collapse into
-        a dimple.  Riding the palm keeps the hand's shape; the fingers keep
-        their own rotation, so bending still animates correctly.
-        """
-        keep = FINGER_OWN_OFFSET
-        for side in ('L', 'R'):
-            hand = self.delta.get('Bip01 %s Hand' % side)
-            if hand is None:
-                continue
-            dhand = hand[1] - hand[0]
-            prefix = 'Bip01 %s Finger' % side
-            for name in list(self.delta):
-                if not name.startswith(prefix):
-                    continue
-                src, dst, R = self.delta[name]
-                own = dst - src
-                self.delta[name] = (src, src + keep * own + (1.0 - keep) * dhand, R)
 
     def _feet_share_one_offset(self):
         """Translate the whole foot with the ankle instead of bone by bone.
@@ -432,6 +412,14 @@ class BindPoseRetarget:
                     continue
                 if B in EYE_CONTROLLERS:
                     B = HEAD_BONE
+                elif FINGERS_BIND_TO_PALM:
+                    side = None
+                    if B.startswith('Bip01 L Finger'):
+                        side = 'L'
+                    elif B.startswith('Bip01 R Finger'):
+                        side = 'R'
+                    if side:
+                        B = 'Bip01 %s Hand' % side
                 acc[B] = acc.get(B, 0.0) + float(w)
             tot = sum(acc.values())
             out.append({k: v / tot for k, v in acc.items()} if tot > 1e-9 else {})
