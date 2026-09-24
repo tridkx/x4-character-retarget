@@ -116,8 +116,16 @@ def create_materials(dds_dir, only=None, verbose=True, collection=COLLECTION):
                 nt.links.new(inv.outputs['Color'], bsdf.inputs['Roughness'])
 
         local = x4_full.split('.', 1)[1]
-        mat['x4cc_shader'] = 'p1_hair' if 'hair' in local else 'p1_character'
-        mat['x4cc_blendmode'] = ('ALPHA1' if entry.get('alpha') else 'NONE')
+        # A manifest may state the shader and blend mode explicitly; older ones
+        # do not, so the name/alpha heuristic stays as the fallback.  (The
+        # Lumine project needs the explicit form: her lashes and brows are
+        # opaque geometry rather than texture masks, so `alpha` alone would
+        # put them on a blend path they do not want.)
+        mat['x4cc_shader'] = (entry.get('shader')
+                              or ('p1_hair' if 'hair' in local
+                                  else 'p1_character'))
+        mat['x4cc_blendmode'] = (entry.get('blendmode')
+                                 or ('ALPHA1' if entry.get('alpha') else 'NONE'))
         result[re8_name] = mat
 
     # Catch-all used when a stage1 submesh lost its material name; without it

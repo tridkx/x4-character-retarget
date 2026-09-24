@@ -194,8 +194,12 @@ DDSD_CAPS = 0x1
 DDSD_HEIGHT = 0x2
 DDSD_WIDTH = 0x4
 DDSD_PIXELFORMAT = 0x1000
+DDSD_MIPMAPCOUNT = 0x20000
 DDSD_LINEARSIZE = 0x80000
 DDPF_FOURCC = 0x4
+DDSCAPS_COMPLEX = 0x8
+DDSCAPS_TEXTURE = 0x1000
+DDSCAPS_MIPMAP = 0x400000
 DXGI = {'BC1': 71, 'BC3': 77, 'BC4': 80, 'BC5': 83}
 
 #: Legacy (non-DX10) FourCC codes.
@@ -211,28 +215,34 @@ FOURCC = {'BC1': b'DXT1', 'BC3': b'DXT5', 'BC4': b'ATI1', 'BC5': b'ATI2'}
 HEADER_BYTES = 128
 
 
-def write_dds(path, width, height, fmt, data):
-    """Write a legacy FourCC DDS file."""
+def write_dds(path, width, height, fmt, data, mip_count=1):
+    """Write a legacy FourCC DDS file (optionally with a mip chain)."""
     four_cc = FOURCC[fmt]
     block_bytes = 8 if fmt in ('BC1', 'BC4') else 16
     pitch = max(1, (width + 3) // 4) * block_bytes
 
+    flags = (DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT
+             | DDSD_LINEARSIZE)
+    caps = DDSCAPS_TEXTURE
+    if mip_count > 1:
+        flags |= DDSD_MIPMAPCOUNT
+        caps |= DDSCAPS_COMPLEX | DDSCAPS_MIPMAP
+
     hdr = bytearray()
     hdr += b'DDS '
     hdr += struct.pack('<I', 124)                     # dwSize
-    hdr += struct.pack('<I', DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH
-                       | DDSD_PIXELFORMAT | DDSD_LINEARSIZE)
+    hdr += struct.pack('<I', flags)
     hdr += struct.pack('<I', height)
     hdr += struct.pack('<I', width)
     hdr += struct.pack('<I', pitch)                   # dwPitchOrLinearSize
     hdr += struct.pack('<I', 0)                       # dwDepth
-    hdr += struct.pack('<I', 1)                       # dwMipMapCount
+    hdr += struct.pack('<I', mip_count)               # dwMipMapCount
     hdr += b'\x00' * 44                               # dwReserved1[11]
     hdr += struct.pack('<I', 32)                      # ddspf.dwSize
     hdr += struct.pack('<I', DDPF_FOURCC)
     hdr += four_cc
     hdr += b'\x00' * 20                               # rgb bit masks
-    hdr += struct.pack('<I', 0x1000)                  # dwCaps = TEXTURE
+    hdr += struct.pack('<I', caps)
     hdr += b'\x00' * 16                               # dwCaps2..4 + reserved
     assert len(hdr) == HEADER_BYTES, len(hdr)
 
@@ -242,14 +252,49 @@ def write_dds(path, width, height, fmt, data):
 
 
 # --------------------------------------------------------------------------
+# mip chain
+# --------------------------------------------------------------------------
+
+def mip_images(img, min_size=1):
+    """[level 0, level 1, ...] halving by a box filter down to `min_size`.
+
+    A single-level DDS is not enough for this game.  The character atlases are
+    dense strand/weave patterns, and with no mip chain the GPU point-samples
+    them: at any distance where a texel is smaller than a pixel the pattern
+    aliases into moire -- golden hair develops black stripes and white cloth
+    develops grey ones, and because the NPC is moving it *crawls*, which is far
+    more obvious in motion than in a still.  Every vanilla character texture
+    checked ships a full chain (2048^2 with mipCount=12), so this matches what
+    the engine expects rather than guessing.
+    """
+    out = [img]
+    while max(out[-1].size) > min_size:
+        w, h = out[-1].size
+        nw, nh = max(1, w // 2), max(1, h // 2)
+        if (nw, nh) == (w, h):
+            break
+        out.append(out[-1].resize((nw, nh), Image.BOX))
+    return out
+
+
+def _encode_chain(img, fmt, encode_level):
+    """Encode every mip level and return (width, height, blob, n_levels)."""
+    levels = mip_images(img)
+    blob = b''.join(encode_level(lv) for lv in levels)
+    return img.size[0], img.size[1], blob, len(levels)
+
+
+# --------------------------------------------------------------------------
 # public API
 # --------------------------------------------------------------------------
 
 def encode_bc1(img, path):
-    arr = np.asarray(img.convert('RGB'))
-    blocks, (h, w) = _to_blocks(arr)
-    out = _bc1_pack(blocks, force_four=True)
-    write_dds(path, w, h, 'BC1', out.tobytes())
+    def level(im):
+        arr = np.asarray(im.convert('RGB'))
+        blocks, _ = _to_blocks(arr)
+        return _bc1_pack(blocks, force_four=True).tobytes()
+    w, h, blob, n = _encode_chain(img, 'BC1', level)
+    write_dds(path, w, h, 'BC1', blob, mip_count=n)
     return path
 
 
@@ -263,34 +308,38 @@ def encode_bc3(img, path):
     sling belt rendering pale pink in game: the belt is one of the few dark
     textures that goes through this path.
     """
-    rgba = img.convert('RGBA')
-    arr = np.asarray(rgba)[..., :3]
-    alpha = np.asarray(rgba)[..., 3]
-    cb, (h, w) = _to_blocks(arr)
-    ab, _ = _to_blocks(alpha[..., None])
-    colour = _bc1_pack(cb, force_four=True)
-    a = _bc4_pack(ab[..., 0])
-    out = np.concatenate([a, colour], axis=2)      # alpha block first
-    write_dds(path, w, h, 'BC3', out.tobytes())
+    def level(im):
+        rgba = im.convert('RGBA')
+        a = np.asarray(rgba)
+        cb, _ = _to_blocks(a[..., :3])
+        ab, _ = _to_blocks(a[..., 3][..., None])
+        colour = _bc1_pack(cb, force_four=True)
+        alpha = _bc4_pack(ab[..., 0])
+        return np.concatenate([alpha, colour], axis=2).tobytes()
+    w, h, blob, n = _encode_chain(img, 'BC3', level)
+    write_dds(path, w, h, 'BC3', blob, mip_count=n)
     return path
 
 
 def encode_bc4(img, path):
-    g = np.asarray(img.convert('L'))
-    blocks, (h, w) = _to_blocks(g[..., None])
-    out = _bc4_pack(blocks[..., 0])
-    write_dds(path, w, h, 'BC4', out.tobytes())
+    def level(im):
+        g = np.asarray(im.convert('L'))
+        blocks, _ = _to_blocks(g[..., None])
+        return _bc4_pack(blocks[..., 0]).tobytes()
+    w, h, blob, n = _encode_chain(img, 'BC4', level)
+    write_dds(path, w, h, 'BC4', blob, mip_count=n)
     return path
 
 
 def encode_bc5(img, path):
-    arr = np.asarray(img.convert('RGB'))
-    rb, (h, w) = _to_blocks(arr[..., 0:1])
-    gb, _ = _to_blocks(arr[..., 1:2])
-    r = _bc4_pack(rb[..., 0])
-    g = _bc4_pack(gb[..., 0])
-    out = np.concatenate([r, g], axis=2)
-    write_dds(path, w, h, 'BC5', out.tobytes())
+    def level(im):
+        arr = np.asarray(im.convert('RGB'))
+        rb, _ = _to_blocks(arr[..., 0:1])
+        gb, _ = _to_blocks(arr[..., 1:2])
+        return np.concatenate([_bc4_pack(rb[..., 0]),
+                               _bc4_pack(gb[..., 0])], axis=2).tobytes()
+    w, h, blob, n = _encode_chain(img, 'BC5', level)
+    write_dds(path, w, h, 'BC5', blob, mip_count=n)
     return path
 
 
@@ -335,9 +384,24 @@ def _self_test():
     encode_bc1(img, dds)
     raw = open(dds, 'rb').read()
     nb = 256 // 4
-    assert len(raw) - HEADER_BYTES == nb * nb * 8, len(raw)
 
-    data = np.frombuffer(raw[HEADER_BYTES:], dtype=np.uint8).reshape(nb, nb, 8)
+    # the file must carry a full mip chain, and the header must say so --
+    # a level-0-only file is what made hair alias into black stripes in game
+    level_bytes = nb * nb * 8
+    n_levels = 9                                   # 256 .. 1
+    expect_total = 0
+    for i in range(n_levels):
+        side = max(1, 256 >> i)
+        expect_total += max(1, (side + 3) // 4) ** 2 * 8
+    mip_count = struct.unpack('<I', raw[28:32])[0]
+    flags = struct.unpack('<I', raw[8:12])[0]
+    assert mip_count == n_levels, mip_count
+    assert flags & DDSD_MIPMAPCOUNT, hex(flags)
+    assert len(raw) - HEADER_BYTES == expect_total, len(raw) - HEADER_BYTES
+    print('mip chain: %d levels, %d bytes total' % (n_levels, expect_total))
+
+    data = np.frombuffer(raw[HEADER_BYTES:HEADER_BYTES + level_bytes],
+                         dtype=np.uint8).reshape(nb, nb, 8)
     p0 = data[..., 0].astype(np.uint16) | (data[..., 1].astype(np.uint16) << 8)
     p1 = data[..., 2].astype(np.uint16) | (data[..., 3].astype(np.uint16) << 8)
     bits = (data[..., 4].astype(np.uint32)

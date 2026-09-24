@@ -136,6 +136,10 @@ class Re8Adapter:
         """'L' / 'R' / None.  RE8 spells the side as an `L_` / `R_` prefix."""
         return name[0] if name[:2] in ('L_', 'R_') else None
 
+    def adjust_target(self, x4_bone, src_pos, dst_pos):
+        """Final say on where a target bone's translation lands."""
+        return dst_pos
+
 
 DEFAULT_ADAPTER = Re8Adapter()
 
@@ -269,8 +273,19 @@ class BindPoseRetarget:
             other = self.adapter.map_bone(src_other)
             if not other or other not in xpos or other == B:
                 return None
-            d = np.asarray(xpos[other]['head'], float) - np.asarray(
-                xpos[B]['head'], float)
+            # Read the direction off the *adjusted* targets.  If a source
+            # adapter moves a target bone (to damp sideways travel, say) but
+            # the axis is still read from the untouched vanilla position, the
+            # rotation and the translation disagree: the shin gets aimed
+            # outward at the splayed vanilla ankle while its translation pulls
+            # it inward, and thigh / calf / foot visibly come apart.
+            a = np.asarray(self.adapter.adjust_target(
+                B, self.src[src_bone],
+                np.asarray(xpos[B]['head'], float)), float)
+            b = np.asarray(self.adapter.adjust_target(
+                other, self.src[src_other],
+                np.asarray(xpos[other]['head'], float)), float)
+            d = b - a
             n = float(np.linalg.norm(d))
             return d / n if n > 1e-6 else None
 
@@ -331,6 +346,7 @@ class BindPoseRetarget:
             if B is None or B not in self.x4:
                 continue
             q = np.asarray(self.x4[B]['head'], float)
+            q = np.asarray(self.adapter.adjust_target(B, self.src[b], q), float)
             u, v = self._pair_axis(b, B)
             if B in self.adapter.no_rotate_bones:
                 self.direct[b] = (self.src[b], q, np.eye(3))
@@ -502,6 +518,37 @@ class BindPoseRetarget:
     def global_only(self, verts_m):
         V = np.array([self.adapter.to_blender(p) for p in verts_m])
         return (self.scale * (self.R @ V.T)).T + self.t
+
+    def transform_weighted(self, verts_m, weights_x4):
+        """Same blend as transform(), but fed X4-space weights.
+
+        Needed when the weights have to be edited *before* the vertices move
+        (re-binding a skirt to the legs, say): the geometry and the skinning
+        have to agree, or the mesh is placed by one bone and then animated by
+        another and jumps on the first frame.
+        """
+        V = np.array([self.adapter.to_blender(p) for p in verts_m])
+        G = (self.scale * (self.R @ V.T)).T + self.t
+        n = len(verts_m)
+        acc = np.zeros((n, 3))
+        tot = np.zeros(n)
+        by_bone = {}
+        for i, d in enumerate(weights_x4):
+            for B, w in d.items():
+                by_bone.setdefault(B, []).append((i, w))
+        for B, items in by_bone.items():
+            rec = self.delta.get(B)
+            if rec is None:
+                continue
+            src, dst, R = rec
+            idx = np.array([it[0] for it in items])
+            w = np.array([it[1] for it in items])
+            acc[idx] += w[:, None] * (dst + (G[idx] - src) @ R.T)
+            tot[idx] += w
+        ok = tot > 1e-9
+        out = G.copy()
+        out[ok] = acc[ok] / tot[ok][:, None]
+        return out, int((~ok).sum())
 
     def transform(self, verts_m, weights, weighted_bones):
         """Return (N,3) vertices in X4/Blender space (cm)."""
