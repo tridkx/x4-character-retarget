@@ -61,8 +61,7 @@ UNINSTALLATION
 
   Side effect: if you also run another mod that replaces Argon appearances
   (a 2B replacer, for example), its entries in those same pools get replaced by
-  this one. Either run this mod alone, or rebuild it in append mode -- see
-  "Want them to coexist" below.
+  this one.  Run this mod on its own.
 
 
 KNOWN ISSUES AND LIMITATIONS
