@@ -60,6 +60,11 @@ ALIGN_PAIRS = [
 #: (Rose's Hip and Spine_0 share a position, which would give a zero axis)
 _MIN_AXIS_LEN = 2.0
 
+#: how many links down the main chain to look for a child that maps to a
+#: different X4 bone than its parent does (MMD rigs insert two or three twist
+#: bones between a joint and the next real joint)
+_MAX_AXIS_WALK = 4
+
 #: X4 drives the eye dummies with a look-at controller.  Rose's eyeball and
 #: eyelid geometry sits ~9 cm away from those bones, so a gaze rotation swings
 #: it out of the head -- the "eyes occasionally drift off the face" report.
@@ -109,6 +114,11 @@ class Re8Adapter:
     head_bone = HEAD_BONE
     no_rotate_bones = NO_ROTATE_BONES
     fingers_bind_to_palm = FINGERS_BIND_TO_PALM
+    #: when the first child on the main chain shares this bone's X4 target,
+    #: keep walking down instead of falling back to the parent direction.
+    #: Off for RE8, whose rig resolves every joint child directly -- turning it
+    #: on there would change a pipeline that is already validated in game.
+    walk_axis_chain = False
     #: (source eye bone, x4 eye dummy) -- the geometry weighted to these rides
     #: the head transform so the look-at controller cannot swing it away
     eye_pairs = (('L_Eye', 'left_eye_dummy'), ('R_Eye', 'right_eye_dummy'))
@@ -274,6 +284,29 @@ class BindPoseRetarget:
             v = target_dir(bone, c)
             if v is not None:
                 return d / n, v
+            if not self.adapter.walk_axis_chain:
+                break
+            # The child maps onto the *same* X4 bone as its parent -- an MMD
+            # twist bone (`左腕捩`) or a tip bone (`左小指先`).  Bailing out to
+            # the parent here is what rotated this rig's upper arms by 91
+            # degrees: the fallback measures the clavicle-to-upperarm
+            # direction, which is perpendicular to the arm.  Keep walking down
+            # the main chain instead, to the first child that does have a
+            # target of its own.
+            cur = c
+            for _ in range(_MAX_AXIS_WALK):
+                kids = [k for k in self.children.get(cur, []) if k in upos]
+                if not kids:
+                    break
+                k = kids[0]
+                d2 = upos[k] - upos[bone]
+                n2 = float(np.linalg.norm(d2))
+                v2 = target_dir(bone, k)
+                if v2 is not None:
+                    if n2 < _MIN_AXIS_LEN:
+                        break
+                    return d2 / n2, v2
+                cur = k
             break
 
         par = self.rose_parent.get(bone)
