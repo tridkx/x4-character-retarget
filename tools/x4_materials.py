@@ -66,11 +66,14 @@ def _load_manifest(dds_dir):
     return json.load(open(path, encoding='utf-8'))
 
 
-def create_materials(dds_dir, only=None, verbose=True):
+def create_materials(dds_dir, only=None, verbose=True, collection=COLLECTION):
     """Build one Blender material per X4 material from a prepared manifest.
 
     The manifest is produced by `prepare_textures.py`, which runs outside
     Blender because Blender's bundled Python has no PIL.
+
+    `collection` only names the catch-all material; the real names come from
+    each manifest entry's `x4_name`, so a second project can reuse this as-is.
     """
     manifest = _load_manifest(dds_dir)
 
@@ -119,12 +122,13 @@ def create_materials(dds_dir, only=None, verbose=True):
 
     # Catch-all used when a stage1 submesh lost its material name; without it
     # that geometry would be dropped silently.
-    if 'rose.generic' not in bpy.data.materials:
-        gen = bpy.data.materials.new('rose.generic')
+    generic = '%s.generic' % collection
+    if generic not in bpy.data.materials:
+        gen = bpy.data.materials.new(generic)
         gen.use_nodes = True
         gen['x4cc_shader'] = 'p1_character'
         gen['x4cc_blendmode'] = 'NONE'
-    result[None] = bpy.data.materials.get('rose.generic') or bpy.data.materials['rose.generic']
+    result[None] = bpy.data.materials[generic]
 
     if verbose:
         print('materials built: %d' % (len(result) - 1))

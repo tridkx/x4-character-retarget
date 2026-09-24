@@ -1,0 +1,129 @@
+[b][size=5]Rose Winters (Resident Evil Village) as an Argon female NPC[/size][/b]
+
+把《生化危机8：萝丝之影》的成年萝丝替换成《X4：基石》里的 Argon 女性 NPC 外观。
+走的是 X4 标准的「换网格、留骨架」路子 —— 用的是原版共享骨架与全套共享动画，
+不修改任何游戏原始文件。
+
+[b]当前版本[/b]：v1.1　|　[b]游戏版本[/b]：X4 9.00（含全部 DLC 的资产命名）
+
+[line]
+
+[b][size=4]安装[/size][/b]
+
+[list=1]
+[*]下载 [b]x4_rose_mod_v1.1.zip[/b]
+[*]解压到游戏根目录下的 [font=Courier New]extensions\[/font] 文件夹，得到：
+[code]X4 Foundations\extensions\x4_rose_mod\
+    content.xml
+    ext_01.cat
+    ext_01.dat[/code]
+[*]启动游戏 → 主菜单 [b]扩展[/b]（Extensions）→ 勾选 [b]Rose Winters (RE8)[/b]
+[*]读取存档或开新档，招募/查看 [b]Argon 女性[/b] 船员即可看到
+[/list]
+
+[b]注意[/b]：NPC 外观是在生成时决定的，已经在场景里的 NPC 不会立刻变化。
+换到有 Argon 女性的区域（空间站、舰队）或重新招募即可。
+
+[b][size=4]卸载[/size][/b]
+
+删除 [font=Courier New]extensions\x4_rose_mod\[/font] 整个文件夹，或在扩展菜单里取消勾选。
+本 mod 不改动任何游戏原文件，卸载后存档可继续使用。
+
+[line]
+
+[b][size=4]本版是「全替换」测试模式 —— 请先读这一段[/size][/b]
+
+为了让测试时不用刷 NPC，本版把 [b]所有 Argon 女性外观池整池替换[/b]：
+你遇到的每一个 Argon 女性都会是萝丝，[b]不再是随机 1/4 概率[/b]。
+
+[b]副作用[/b]：如果你同时装了其它替换 Argon 外观的 mod（例如各种 2B 替换），
+它们在同一批外观池里的条目会被本 mod 覆盖掉。要共存请自行改用「追加」模式重建
+（见下），或先只启用本 mod。
+
+[line]
+
+[b][size=4]已知缺陷与限制（请务必阅读）[/size][/b]
+
+这个移植在动画绑定的正确性上已经过关（四肢不会反向弯折），但[b]它不是一比一还原[/b]。
+以下是全部已知问题，按明显程度排序：
+
+[b]1. 夹克上有几条深色竖条纹[/b]
+原版这里应该是灰色装饰线。原因是夹克上有一层「卡片几何」（拉链底座、金属件一类），
+它的 UV 落在贴图图集的深色区域上。已改善但仍可见。
+
+[b]2. 手和头发是刚体[/b]
+[list]
+[*][b]手指绑定在手掌上[/b]，不单独做动作。这样做的代价换来的是手型正确 ——
+Rose 的手指原本是并拢的，而 X4 的骨骼是张开的，逐指对齐会把虎口撕开一道口子。
+[*][b]头发整体绑定在头部骨上[/b]，不会飘动（X4 的 91 根骨架里没有发丝链）。
+[*][b]脚趾[/b]相对骨骼偏离约 5 cm —— 这是为了让鞋底平整地踩在地面上
+（X4 的脚趾骨几乎贴地，逐骨对齐会把脚跟抬起来 5 cm）。
+[/list]
+
+[b]3. 手部表面不够光滑[/b]
+手指上原来有一圈圈横向环纹，已消除；但手背/手心的法线贴图仍不如原版干净。
+根因是切线空间在减面后受损，已通过「手部完全不减面」缓解。
+
+[b]4. 模型精度低于原版萝丝[/b]
+X4 的 NPC 是实例化渲染的（空间站里同时几十个），资产顶点数必须贴近原版
+（约 5k/资产）。本 mod 控制在原版的约 6 倍，代价是面部与衣服比源模型粗糙。
+[b]如果你的机器在空间站出现频闪、地图卡死[/b]，说明显存吃紧，请降低画质或反馈。
+
+[b]5. 眼球偏灰白[/b]
+RE8 用着色器参数渲染虹膜与瞳孔，而 X4 的材质系统只接受
+diffuse / normal / smoothness 三张贴图，这一层无法直接搬运。
+
+[b]6. 夹克袖口有深色斑块[/b]
+与第 1 点同源（卡片几何的 UV 问题），程度较轻。
+
+[b]7. 没有面部表情与口型[/b]
+X4 的捏脸系统（facemods）与语音口型对本 mod 无效，萝丝是固定外观、固定表情。
+
+[line]
+
+[b][size=4]兼容性[/size][/b]
+
+[list]
+[*]需要 [b]X4: Foundations 9.00[/b] 或更高（开发与测试均在 9.00）。
+[*]不修改任何游戏原文件，可与绝大多数 mod 共存。
+[*]与其它 Argon 外观替换 mod 冲突：[b]本版会覆盖它们的条目[/b]（见上）。
+[*]存档安全：可随时启用/停用，不影响存档。
+[/list]
+
+[b][size=4]想共存 / 想自己改[/size][/b]
+
+本 mod 的全部管线与逆向笔记都开源在 GitHub（MIT）：
+[url=https://github.com/tridkx/x4-character-retarget]github.com/tridkx/x4-character-retarget[/url]
+
+其中 [font=Courier New]tools/make_mod.py[/font] 顶部的开关：
+
+[code]REPLACE_ALL_ARGON_FEMALE = False   # 改成 False 重新构建 = 追加模式（约 1/4 概率）[/code]
+
+改完重跑该脚本并重新打包即可。仓库里还有完整的构建文档与逐轮排错日志。
+
+[line]
+
+[b][size=4]前置要求[/size][/b]
+
+[list]
+[*]正版《X4：基石》（本 mod 只含转换产物，不含任何游戏本体文件）
+[*]若要从零重建，还需要 [url=https://www.egosoft.com/download/x4/bonus_en.php]X Tools[/url]、
+[url=https://www.nexusmods.com/x4foundations/mods/2152]X4 Character Converter[/url]、
+[url=https://github.com/Percyqaz/RE-Mesh-Editor]RE-Mesh-Editor[/url] 与 Blender
+[/list]
+
+[b][size=4]致谢[/size][/b]
+
+[list]
+[*][b]X4 Character Converter[/b] by DiCrash / Orion —— 没有这个导出器就没有这一切
+[*][b]RE-Mesh-Editor[/b] by Percyqaz 及其贡献者
+[*][b]EGOSOFT[/b] 的 X Tools 与 X4 modding 文档
+[/list]
+
+[b][size=4]版权[/size][/b]
+
+《Resident Evil》为 CAPCOM 商标，《X4：Foundations》为 EGOSOFT 商标。
+本 mod 为非官方粉丝作品，仅供个人使用，不含任何游戏本体资产。
+萝丝·温特斯的模型与贴图版权归 CAPCOM 所有。
+
+[b]工具部分以 MIT 许可开源[/b]（见上方 GitHub 仓库）。

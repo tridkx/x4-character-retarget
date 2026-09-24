@@ -86,6 +86,8 @@ RE8 .mesh (weights)  ->  bind-pose transfer onto the X4 skeleton  ->  .blend
 | In-game re-test | mod is installed in `extensions/x4_rose_mod` |
 | **Hands and hair are rigid** | fingers are bound to the palm and hair to `Bip01 Head`, so neither moves on its own. Deliberate: see "Known compromises" below. |
 | **Hand surface still not perfectly smooth** | much better since the hands stopped being decimated, but the normal map on the fingers is still not as clean as vanilla's |
+| **Dark vertical stripes on the jacket** | card geometry over the coat (zip backing, fittings) samples a dark patch of the atlas through its own UVs. Improved by giving those materials flat colours, still visible; accepted as-is. |
+| **Dark patches at the cuffs** | same cause as above, milder |
 | Eyeball shading | RE8 drives the iris from shader params; X4 only takes diffuse/normal/smoothness, so the eye reads pale grey |
 | Vertex budget | kept near 6x vanilla per asset; 15x brought back the in-station flicker |
 | Long hair | bound to `Bip01 Head` — the X4 Biped has no hair chain, so it moves rigidly with the head |

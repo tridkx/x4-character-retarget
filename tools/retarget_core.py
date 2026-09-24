@@ -40,7 +40,7 @@ Two details that matter:
 
 import numpy as np
 
-from re8_to_x4 import map_bone, is_direct_bone
+import re8_to_x4
 
 #: bone pairs used for the global frame fit; unambiguous, symmetric, and
 #: spread over the body so the fit is well conditioned
@@ -94,6 +94,42 @@ NO_ROTATE_BONES = {'Bip01 L Foot', 'Bip01 R Foot', 'Bip01 L Toe0', 'Bip01 R Toe0
 FINGERS_BIND_TO_PALM = True
 
 
+class Re8Adapter:
+    """Source-rig adapter for the RE Engine pipeline (the original one).
+
+    Everything the retarget needs to know about where the mesh came from lives
+    behind this interface, so a second source game (MMD/PMX, UE, ...) only has
+    to supply its own adapter instead of forking this module.  The defaults
+    reproduce the RE8 behaviour exactly.
+    """
+
+    name = 're8'
+    align_pairs = ALIGN_PAIRS
+    eye_controllers = EYE_CONTROLLERS
+    head_bone = HEAD_BONE
+    no_rotate_bones = NO_ROTATE_BONES
+    fingers_bind_to_palm = FINGERS_BIND_TO_PALM
+    #: (source eye bone, x4 eye dummy) -- the geometry weighted to these rides
+    #: the head transform so the look-at controller cannot swing it away
+    eye_pairs = (('L_Eye', 'left_eye_dummy'), ('R_Eye', 'right_eye_dummy'))
+
+    def to_blender(self, p_m):
+        return rose_to_blender(p_m)
+
+    def map_bone(self, name):
+        return re8_to_x4.map_bone(name)
+
+    def is_direct_bone(self, name):
+        return re8_to_x4.is_direct_bone(name)
+
+    def side_of(self, name):
+        """'L' / 'R' / None.  RE8 spells the side as an `L_` / `R_` prefix."""
+        return name[0] if name[:2] in ('L_', 'R_') else None
+
+
+DEFAULT_ADAPTER = Re8Adapter()
+
+
 def rose_to_blender(p_m):
     """RE8 source (x, up, forward) metres -> X4/Blender arrangement cm.
 
@@ -145,12 +181,15 @@ def min_rotation(a, b):
 class BindPoseRetarget:
     """Builds the per-bone transforms, then applies them to vertices."""
 
-    def __init__(self, rose_pos_m, rose_parent, x4_bones, verbose=True):
+    def __init__(self, rose_pos_m, rose_parent, x4_bones, verbose=True,
+                 adapter=None):
         """
-        rose_pos_m : {re8 bone: (x, y, z) metres}   source rig, world space
-        rose_parent: {re8 bone: parent name or None}
+        rose_pos_m : {source bone: (x, y, z) source units}   source rig
+        rose_parent: {source bone: parent name or None}
         x4_bones   : {x4 bone: {'head': (3,), 'tail': (3,), ...}}
+        adapter    : source-rig adapter; defaults to the RE8 one
         """
+        self.adapter = adapter or DEFAULT_ADAPTER
         self.rose_pos = {k: np.asarray(v, float)
                          for k, v in rose_pos_m.items()}
         self.rose_parent = rose_parent
@@ -169,14 +208,14 @@ class BindPoseRetarget:
     # ------------------------------------------------------------------ setup
     def _fit_frame(self):
         P, Q = [], []
-        for rb, xb in ALIGN_PAIRS:
+        for rb, xb in self.adapter.align_pairs:
             if rb in self.rose_pos and xb in self.x4:
-                P.append(rose_to_blender(self.rose_pos[rb]))
+                P.append(self.adapter.to_blender(self.rose_pos[rb]))
                 Q.append(np.asarray(self.x4[xb]['head'], float))
         if len(P) < 3:
             raise RuntimeError('not enough matched bone pairs for the frame fit')
         self.scale, self.R, self.t = kabsch(np.array(P), np.array(Q))
-        self.src = {b: self.scale * (self.R @ rose_to_blender(p)) + self.t
+        self.src = {b: self.scale * (self.R @ self.adapter.to_blender(p)) + self.t
                     for b, p in self.rose_pos.items()}
 
         if self.verbose:
@@ -184,7 +223,8 @@ class BindPoseRetarget:
             res = [float(np.linalg.norm(a - b)) for a, b in zip(pred, Q)]
             print('  frame fit: scale=%.5f det(R)=%+.3f' %
                   (self.scale, float(np.linalg.det(self.R))))
-            worst = sorted(zip(res, [p[0] for p in ALIGN_PAIRS]), reverse=True)
+            worst = sorted(zip(res, [p[0] for p in self.adapter.align_pairs]),
+                           reverse=True)
             print('  worst matched pairs: ' +
                   ', '.join('%s %.1fcm' % (n, d) for d, n in worst[:4]))
 
@@ -216,7 +256,7 @@ class BindPoseRetarget:
         upos, xpos = self.src, self.x4
 
         def target_dir(src_bone, src_other):
-            other = map_bone(src_other)
+            other = self.adapter.map_bone(src_other)
             if not other or other not in xpos or other == B:
                 return None
             d = np.asarray(xpos[other]['head'], float) - np.asarray(
@@ -249,17 +289,17 @@ class BindPoseRetarget:
 
     def _build_direct(self):
         """One source->target transform per bone that has a real counterpart."""
-        self.direct = {}          # re8 bone -> (src_pos, dst_pos, R)
+        self.direct = {}          # source bone -> (src_pos, dst_pos, R)
         self.n_axis_fallback = 0
         for b, p in self.rose_pos.items():
-            if not is_direct_bone(b):
+            if not self.adapter.is_direct_bone(b):
                 continue
-            B = map_bone(b)
+            B = self.adapter.map_bone(b)
             if B is None or B not in self.x4:
                 continue
             q = np.asarray(self.x4[B]['head'], float)
             u, v = self._pair_axis(b, B)
-            if B in NO_ROTATE_BONES:
+            if B in self.adapter.no_rotate_bones:
                 self.direct[b] = (self.src[b], q, np.eye(3))
                 continue
             if u is None or v is None:
@@ -280,12 +320,13 @@ class BindPoseRetarget:
             if b in self.direct:
                 self.anchor[b] = b
                 continue
-            side = b[0] if b[:2] in ('L_', 'R_') else None
+            side = self.adapter.side_of(b)
             best, bd = None, 1e18
             for c in dn:
-                if side and not c.startswith(side + '_'):
-                    continue
-                if not side and c[:2] in ('L_', 'R_'):
+                if side is None:
+                    if self.adapter.side_of(c) is not None:
+                        continue
+                elif self.adapter.side_of(c) != side:
                     continue
                 d = float(np.linalg.norm(self.src[b] - self.src[c]))
                 if d < bd:
@@ -296,14 +337,14 @@ class BindPoseRetarget:
 
         self.delta = {}           # x4 bone -> (src_pos, dst_pos, R)
         for b, rec in self.direct.items():
-            B = map_bone(b)
+            B = self.adapter.map_bone(b)
             if B is not None and B not in self.delta:
                 self.delta[B] = rec
         # folding bones only fill in targets nothing direct maps to
         for b in self.rose_pos:
             if b in self.direct:
                 continue
-            B = map_bone(b)
+            B = self.adapter.map_bone(b)
             if B is None or B not in self.x4 or B in self.delta:
                 continue
             a = self.anchor.get(b)
@@ -354,17 +395,18 @@ class BindPoseRetarget:
         """
         neck = head = None
         for b, rec in self.direct.items():
-            B = map_bone(b)
+            B = self.adapter.map_bone(b)
             if B == 'Bip01 Neck' and neck is None:
                 neck = rec
-            elif B == HEAD_BONE and head is None:
+            elif B == self.adapter.head_bone and head is None:
                 head = rec
         if neck is None or head is None:
             return
         shared = 0.5 * ((neck[1] - neck[0]) + (head[1] - head[0]))
         for bone, rec in (('Neck', neck), ('Head', head)):
             src = rec[0]
-            x4_bone = 'Bip01 Neck' if bone == 'Neck' else HEAD_BONE
+            x4_bone = ('Bip01 Neck' if bone == 'Neck'
+                       else self.adapter.head_bone)
             self.delta[x4_bone] = (src, src + shared, rec[2])
         self.head_neck_shared = float(np.linalg.norm(shared))
 
@@ -381,18 +423,17 @@ class BindPoseRetarget:
         """
         # read the *adjusted* head transform (harmonise runs first), otherwise
         # the eyeballs ride the raw one and stay sunk in the collar
-        head = self.delta.get(HEAD_BONE)
+        head = self.delta.get(self.adapter.head_bone)
         if head is None:
             for b, rec in self.direct.items():
-                if map_bone(b) == HEAD_BONE:
+                if self.adapter.map_bone(b) == self.adapter.head_bone:
                     head = rec
                     break
         if head is None:
             return
         hsrc, hdst, hR = head
-        for rose_bone, x4_bone in (('L_Eye', 'left_eye_dummy'),
-                                   ('R_Eye', 'right_eye_dummy')):
-            rec = self.direct.get(rose_bone)
+        for src_bone, x4_bone in self.adapter.eye_pairs:
+            rec = self.direct.get(src_bone)
             if rec is None or x4_bone not in self.x4:
                 continue
             src = rec[0]
@@ -400,19 +441,19 @@ class BindPoseRetarget:
 
     # ------------------------------------------------------------------ apply
     def merge_weights(self, weights, weighted_bones):
-        """RE8 per-vertex weights -> {x4 bone: weight}, renormalised."""
+        """Source per-vertex weights -> {x4 bone: weight}, renormalised."""
         out = []
         for wl in weights:
             acc = {}
             for bid, w in wl:
                 if bid >= len(weighted_bones):
                     continue
-                B = map_bone(weighted_bones[bid])
+                B = self.adapter.map_bone(weighted_bones[bid])
                 if B is None or B not in self.x4:
                     continue
-                if B in EYE_CONTROLLERS:
-                    B = HEAD_BONE
-                elif FINGERS_BIND_TO_PALM:
+                if B in self.adapter.eye_controllers:
+                    B = self.adapter.head_bone
+                elif self.adapter.fingers_bind_to_palm:
                     side = None
                     if B.startswith('Bip01 L Finger'):
                         side = 'L'
@@ -426,12 +467,12 @@ class BindPoseRetarget:
         return out
 
     def global_only(self, verts_m):
-        V = np.array([rose_to_blender(p) for p in verts_m])
+        V = np.array([self.adapter.to_blender(p) for p in verts_m])
         return (self.scale * (self.R @ V.T)).T + self.t
 
     def transform(self, verts_m, weights, weighted_bones):
         """Return (N,3) vertices in X4/Blender space (cm)."""
-        V = np.array([rose_to_blender(p) for p in verts_m])
+        V = np.array([self.adapter.to_blender(p) for p in verts_m])
         G = (self.scale * (self.R @ V.T)).T + self.t
         merged = self.merge_weights(weights, weighted_bones)
 

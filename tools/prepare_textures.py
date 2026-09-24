@@ -97,6 +97,12 @@ SHARED_SURFACE = {
 #: see tex_convert.MAX_TEXTURE_SIZE
 MAX_SIZE = 1024
 
+#: Flat placeholder maps only need to carry one colour.  Keep them small --
+#: at 1024 they added 35 MB to the package for no visual gain.  (The magenta
+#: chips that were blamed on a small map turned out to be the BC3 block-order
+#: bug, so there is no reason to inflate these.)
+PLACEHOLDER_SIZE = 128
+
 
 def local_name(re8_name):
     s = re8_name.lower()
@@ -299,18 +305,17 @@ def main():
 
         shared = SHARED_SURFACE.get(local_name(re8_name))
         if shared and shared in derived:
-            # Card geometry lying on another material: its own tiling UVs
-            # sample whatever happens to be there (magenta chips, for the zip
-            # backing).  Point it at the base material's *texture* rather than
-            # a flat colour swatch -- a 16x16 solid was rejected by the game
-            # and rendered as its missing-texture magenta, which is exactly
-            # what this was trying to fix.  Reusing the verified 1024px map
-            # keeps the colour right and the tiling reads as fabric.
-            base_diff = os.path.join(
-                DDS_DIR, '%s_diff.dds' % full_name(shared).replace('.', '_'))
-            if os.path.exists(base_diff):
-                produced['Diffuse'] = base_diff
-                print('  %-26s diffuse -> %s texture' % (re8_name, shared))
+            # Card geometry lying on another material.  A flat colour is the
+            # only thing that works here: sampling the base material's atlas
+            # through these UVs lands on dark patches (the jacket's dark
+            # vertical stripes) or on the atlas padding, and a small solid map
+            # is rejected outright.  Colour comes from the base material's own
+            # UV-sampled mean, at the same size/format as a real texture.
+            ph = os.path.join(DDS_DIR, '%s_diff.dds' % safe)
+            write_placeholder(ph, derived[shared], alpha=alpha, size=PLACEHOLDER_SIZE)
+            produced['Diffuse'] = ph
+            print('  %-26s flat Diffuse %-16s (overlay on %s, %dpx)'
+                  % (re8_name, str(derived[shared]), shared, MAX_SIZE))
 
         if 'Diffuse' not in produced:
             ph = os.path.join(DDS_DIR, '%s_diff.dds' % safe)
@@ -328,18 +333,18 @@ def main():
             # base material's map is wrong for these parts because their UVs
             # are tiled far outside 0..1 -- every clamped sample lands on the
             # atlas padding and the trim turns black.
-            write_placeholder(ph, rgb, alpha=alpha, size=MAX_SIZE)
+            write_placeholder(ph, rgb, alpha=alpha, size=PLACEHOLDER_SIZE)
             produced['Diffuse'] = ph
             note = ''
             if 'Smoothness' not in produced:
                 sm = base_material_smoothness(re8_name, mat_defs)
                 if sm is not None:
                     sp = os.path.join(DDS_DIR, '%s_smooth.dds' % safe)
-                    write_smoothness_placeholder(sp, sm, size=MAX_SIZE)
+                    write_smoothness_placeholder(sp, sm, size=PLACEHOLDER_SIZE)
                     produced['Smoothness'] = sp
                     note = ' + smooth %.2f' % sm
             print('  %-26s flat Diffuse %-16s (%s, %dpx)%s'
-                  % (re8_name, str(rgb), source, MAX_SIZE, note))
+                  % (re8_name, str(rgb), source, PLACEHOLDER_SIZE, note))
 
         manifest[re8_name] = {
             'x4_name': x4_full,
