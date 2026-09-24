@@ -109,6 +109,11 @@ docs/       可行性验证报告 + 逐轮工程日志（中文）
 examples/   配置模板
 ```
 
+**跨项目共享的资产不在这里**（解包的游戏根、Blender 插件、参考 mod）——
+它们放在工作区的 `shared/` 下，脚本用 `shared` 变量引用。
+打算做第二个 X4 mod 时，目录怎么分层见 skill 的
+[§1.3 多项目工作区布局](https://github.com/tridkx/dsh-skill-x4-npc-replacement-mod/blob/main/references/00-scope-and-pipeline.md#13-建议的工程布局)。
+
 ## 依赖
 
 - **X4: Foundations**（开发于 9.00）+ [X Tools](https://www.egosoft.com/download/x4/bonus_en.php)（`XRCatTool.exe`）

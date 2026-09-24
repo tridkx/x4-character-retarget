@@ -18,12 +18,12 @@ import addon_utils
 import bpy
 from mathutils import Matrix, Vector
 
-ADDON = r"D:\dsh-x4\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
+ADDON = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
 
 #: set by the optional third argv: render with diffuse textures instead of a
 #: flat material colour
 TEXTURE_MODE = False
-ROOT = r"D:\dsh-x4\work\x4root"
+ROOT = r"D:\dsh-x4\shared\x4root"
 OUT = r"D:\dsh-x4\work\preview\posetest"
 sys.path.insert(0, ADDON)
 

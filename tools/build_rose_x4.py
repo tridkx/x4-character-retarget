@@ -37,8 +37,8 @@ import pathlib
 # paths / config
 # --------------------------------------------------------------------------
 WORK = r"D:\dsh-x4\work"
-ADDON_DIR = r"D:\dsh-x4\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
-X4_ROOT = os.path.join(WORK, "x4root")
+ADDON_DIR = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
+X4_ROOT = r"D:\dsh-x4\shared\x4root"
 RE8_TOOLS = r"D:\dsh-mod\re8\tools\RE-Mesh-Editor-main"
 RE8_RAW = r"D:\dsh-mod\re8\output\raw_natives\natives\stm\_ge\character\ch\ch01\6000"
 RE8_MODELS = r"D:\dsh-mod\re8\output\models\Rose_Adult_ShadowsOfRose"

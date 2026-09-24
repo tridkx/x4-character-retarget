@@ -9,8 +9,8 @@ import numpy as np
 import bpy, addon_utils, pathlib
 from mathutils import Vector
 
-ADDON = r"D:\dsh-x4\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
-ROOT = r"D:\dsh-x4\work\x4root"
+ADDON = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
+ROOT = r"D:\dsh-x4\shared\x4root"
 OUT = r"D:\dsh-x4\work\preview\skel"
 sys.path.insert(0, ADDON)
 

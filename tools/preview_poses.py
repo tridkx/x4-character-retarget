@@ -32,8 +32,8 @@ import pathlib
 from mathutils import Euler, Vector
 
 WORK = r"D:\dsh-x4\work"
-ROOT = os.path.join(WORK, "x4root")
-ADDON_DIR = r"D:\dsh-x4\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
+ROOT = r"D:\dsh-x4\shared\x4root"
+ADDON_DIR = r"D:\dsh-x4\shared\X4CharacterConverter 2152 v0.8.7 2026-06-13T03-09Z QePzPJC03"
 HOST = r"assets\characters\argon\heads\char_arg_f_dyn_blend_head.xac"
 OUT = os.path.join(WORK, "preview", "poses")
 

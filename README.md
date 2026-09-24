@@ -388,6 +388,11 @@ docs/      feasibility study and running engineering log
 examples/  config templates
 ```
 
+Shared assets (the unpacked game root, the Blender add-on, reference mods) live
+in the workspace's `shared/` directory rather than here, and the scripts refer
+to them through a `SHARED` variable.  For how to lay out a second X4 mod, see
+[§1.3 multi-project workspace](https://github.com/tridkx/dsh-skill-x4-npc-replacement-mod/blob/main/references/00-scope-and-pipeline.md#13-建议的工程布局).
+
 ## Licence / credits
 
 Tooling here is original work released under the MIT Licence (see `LICENSE`).
