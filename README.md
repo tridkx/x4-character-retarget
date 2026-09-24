@@ -1,8 +1,29 @@
 # x4-character-retarget
 
+> **中文说明**: [`README.zh-CN.md`](README.zh-CN.md)
+> **Finished mod**: [Releases → `x4_rose_mod_v1.0.zip`](https://github.com/tridkx/x4-character-retarget/releases/download/v1.0/x4_rose_mod_v1.0.zip)
+
 Tooling and reverse-engineering notes for **retargeting a RE Engine character
 (Resident Evil Village) onto the X4: Foundations NPC skeleton**, so it can
 appear as an Argon female NPC in game.
+
+This repo holds the **pipeline scripts and the findings**, not the built mod --
+binary assets stay out of git history and ship as a
+[release](../../releases) attachment instead.
+
+## Installing the mod
+
+1. Download `x4_rose_mod_v1.0.zip` from [Releases](../../releases)
+2. Unpack into `X4 Foundations/extensions/` so you get `extensions/x4_rose_mod/`
+3. Enable it in the game's *Extensions* menu
+
+This build is in **test mode**: every Argon-female appearance pool is replaced
+outright, so every Argon woman you meet is Rose. To run alongside other mods of
+the same kind, set `REPLACE_ALL_ARGON_FEMALE = False` in `tools/make_mod.py`
+and rebuild (append mode, ~1 in N).
+
+Requires a legitimate copy of X4: Foundations (developed against 9.00). The
+release contains only converted assets, no game files.
 
 > **Project status: retarget solved offline; in-game re-test pending.**
 > The skinning error that stalled this project (~20 cm, limbs bending the
